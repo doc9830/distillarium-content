@@ -1,0 +1,572 @@
+// Общая библиотека конвейера контента: разбор Markdown, проверки, индекс поиска.
+// Зависимостей нет — только Node.js. Контент не выполняет код: читаем только
+// frontmatter и текст Markdown.
+
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+
+export const SCHEMA_VERSION = 1;
+export const REQUIRED_FIELDS = ["id", "title", "short"];
+export const FRONTMATTER_ORDER = [
+  "id",
+  "title",
+  "short",
+  "category",
+  "level",
+  "tech",
+  "equipment",
+  "tags",
+  "created",
+  "updated",
+  "sources",
+  "calc",
+  "source",
+  "source_slug",
+];
+
+export const POSIX = path.posix;
+
+export function sha256(buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+export function fileSha256(file) {
+  return sha256(fs.readFileSync(file));
+}
+
+export function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КиБ`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} МиБ`;
+}
+
+export function toPosix(value) {
+  return value.split(path.sep).join("/");
+}
+
+/** Все файлы каталога рекурсивно, пути относительно base, отсортированы. */
+export function walkFiles(dir, base = dir) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...walkFiles(full, base));
+    } else if (entry.isFile()) {
+      out.push(toPosix(path.relative(base, full)));
+    }
+  }
+  return out.sort();
+}
+
+export function rmrf(target) {
+  fs.rmSync(target, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// Frontmatter: поддерживаем подмножество YAML, которое использует проект.
+// ---------------------------------------------------------------------------
+
+function unquote(value) {
+  const text = value.trim();
+  if (
+    (text.startsWith('"') && text.endsWith('"')) ||
+    (text.startsWith("'") && text.endsWith("'"))
+  ) {
+    if (text.startsWith('"')) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text.slice(1, -1);
+      }
+    }
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+export function parseFrontmatter(text) {
+  const source = text.replace(/^\uFEFF/, "");
+  const lines = source.split("\n");
+  if (lines[0]?.trim() !== "---") {
+    return { data: {}, body: source, hasFrontmatter: false };
+  }
+  let end = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") {
+      end = i;
+      break;
+    }
+  }
+  if (end === -1) {
+    return { data: {}, body: source, hasFrontmatter: false };
+  }
+
+  const data = {};
+  const fmLines = lines.slice(1, end);
+  for (let i = 0; i < fmLines.length; i++) {
+    const line = fmLines[i];
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+    const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const key = match[1];
+    const rawValue = match[2].trim();
+
+    if (rawValue === "") {
+      const items = [];
+      let j = i + 1;
+      while (j < fmLines.length) {
+        const item = /^\s+-\s+(.*)$/.exec(fmLines[j]);
+        if (!item) break;
+        items.push(unquote(item[1].trim()));
+        j++;
+      }
+      if (items.length) {
+        data[key] = items;
+        i = j - 1;
+      } else {
+        data[key] = "";
+      }
+      continue;
+    }
+
+    if (rawValue.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(rawValue);
+        data[key] = Array.isArray(parsed) ? parsed : rawValue;
+      } catch {
+        data[key] = rawValue
+          .replace(/^\[|\]$/g, "")
+          .split(",")
+          .map((part) => unquote(part))
+          .filter((part) => part !== "");
+      }
+      continue;
+    }
+
+    if (rawValue === "null" || rawValue === "~") {
+      data[key] = null;
+    } else if (rawValue === "true" || rawValue === "false") {
+      data[key] = rawValue === "true";
+    } else if (/^-?\d+(\.\d+)?$/.test(rawValue)) {
+      data[key] = Number(rawValue);
+    } else {
+      data[key] = unquote(rawValue);
+    }
+  }
+
+  const body = lines
+    .slice(end + 1)
+    .join("\n")
+    .replace(/^\n+/, "")
+    .replace(/\s+$/, "");
+
+  return { data, body, hasFrontmatter: true };
+}
+
+function needsQuotes(value) {
+  if (value === "") return true;
+  if (/^\s|\s$/.test(value)) return true;
+  if (/[:#\[\]{}&*!|>'"%@`,]/.test(value)) return true;
+  if (/^(true|false|null|~|-?\d+(\.\d+)?)$/.test(value)) return true;
+  return false;
+}
+
+export function stringifyFrontmatter(data, order = FRONTMATTER_ORDER) {
+  const keys = [
+    ...order.filter((key) => Object.prototype.hasOwnProperty.call(data, key)),
+    ...Object.keys(data).filter((key) => !order.includes(key)),
+  ];
+  const lines = ["---"];
+  for (const key of keys) {
+    const value = data[key];
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      lines.push(`${key}: ${JSON.stringify(value)}`);
+    } else if (value === null) {
+      lines.push(`${key}: null`);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      lines.push(`${key}: ${value}`);
+    } else if (typeof value === "string" && needsQuotes(value)) {
+      lines.push(`${key}: ${JSON.stringify(value)}`);
+    } else {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  lines.push("---", "");
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Текст: короткое описание, оглавление, plain text для индекса.
+// ---------------------------------------------------------------------------
+
+export function stripMarkdown(text) {
+  return text
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/^>\s?/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/^:::.*$/gm, "")
+    .replace(/^==.*==$/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function clip(text, limit = 300) {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trim()}…`;
+}
+
+function sectionText(body, title) {
+  const lines = body.split("\n");
+  const wanted = title.trim().toLowerCase();
+  let start = -1;
+  let level = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const match = /^(#{1,6})\s+(.*)$/.exec(lines[i]);
+    if (!match) continue;
+    if (match[2].trim().toLowerCase() === wanted) {
+      start = i + 1;
+      level = match[1].length;
+      break;
+    }
+  }
+  if (start === -1) return "";
+  const collected = [];
+  for (let i = start; i < lines.length; i++) {
+    const match = /^(#{1,6})\s+/.exec(lines[i]);
+    if (match && match[1].length <= level) break;
+    collected.push(lines[i]);
+  }
+  return collected.join("\n");
+}
+
+export function deriveShort(data, body) {
+  const fromFrontmatter = typeof data.short === "string" ? data.short.trim() : "";
+  if (fromFrontmatter) return clip(stripMarkdown(fromFrontmatter));
+
+  const shortSection = sectionText(body, "Коротко");
+  if (shortSection.trim()) {
+    const paragraphs = shortSection
+      .split(/\n\s*\n/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    for (const paragraph of paragraphs) {
+      if (/^(>|:::|-|\*|\d+\.|\|)/.test(paragraph)) continue;
+      const text = stripMarkdown(paragraph);
+      if (text) return clip(text);
+    }
+  }
+
+  const paragraphs = body
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const paragraph of paragraphs) {
+    if (/^(#|:::|==|\||>)/.test(paragraph)) continue;
+    const text = stripMarkdown(paragraph);
+    if (text.length >= 20) return clip(text);
+  }
+  return "";
+}
+
+export function extractHeadings(body) {
+  const headings = [];
+  for (const line of body.split("\n")) {
+    const match = /^(#{2,6})\s+(.+)$/.exec(line);
+    if (match) headings.push(stripMarkdown(match[2]).trim());
+  }
+  return headings;
+}
+
+export function plainText(body) {
+  return stripMarkdown(body);
+}
+
+// ---------------------------------------------------------------------------
+// Загрузка контента и проверки
+// ---------------------------------------------------------------------------
+
+function checkStringArray(value, field, where, errors) {
+  if (value === undefined) return;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    errors.push(`${where}: поле ${field} должно быть массивом строк`);
+  }
+}
+
+function loadArticles(contentDir, errors) {
+  const wikiDir = path.join(contentDir, "wiki");
+  const files = walkFiles(wikiDir).filter((rel) => rel.endsWith(".md"));
+  if (!files.length) {
+    errors.push("content/wiki: не найдено ни одной статьи");
+    return [];
+  }
+
+  const articles = [];
+  for (const rel of files) {
+    const where = `wiki/${rel}`;
+    const raw = fs.readFileSync(path.join(wikiDir, rel), "utf8");
+    const parsed = parseFrontmatter(raw);
+    if (!parsed.hasFrontmatter) {
+      errors.push(`${where}: нет frontmatter (нужен блок --- … ---)`);
+    }
+    const data = parsed.data;
+    const id = typeof data.id === "string" ? data.id.trim() : "";
+    const expectedId = rel.slice(0, -".md".length);
+    if (!id) {
+      errors.push(`${where}: пустой обязательный id`);
+    } else if (id !== expectedId) {
+      errors.push(
+        `${where}: id "${id}" не совпадает с путём; ожидался "${expectedId}"`,
+      );
+    }
+
+    const title = typeof data.title === "string" ? data.title.trim() : "";
+    if (!title) errors.push(`${where}: пустой обязательный title`);
+
+    const short = deriveShort(data, parsed.body);
+    if (!short) errors.push(`${where}: пустой обязательный short (не выводится из текста)`);
+
+    for (const field of ["tech", "equipment", "tags", "sources", "calc"]) {
+      checkStringArray(data[field], field, where, errors);
+    }
+    if (
+      data.level !== undefined &&
+      (typeof data.level !== "number" || data.level < 1 || data.level > 3)
+    ) {
+      errors.push(`${where}: level должен быть числом 1–3`);
+    }
+    if (data.sources === undefined) {
+      errors.push(`${where}: нет поля sources (пустой массив допустим)`);
+    }
+
+    articles.push({
+      id,
+      rel,
+      packagePath: `wiki/${rel}`,
+      fullPath: path.join(wikiDir, rel),
+      data,
+      body: parsed.body,
+      title,
+      short,
+    });
+  }
+  return articles;
+}
+
+function loadRedirects(contentDir, errors) {
+  const file = path.join(contentDir, "redirects.json");
+  if (!fs.existsSync(file)) {
+    errors.push("redirects.json: файл не найден");
+    return {};
+  }
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    errors.push(`redirects.json: не разбирается как JSON (${error.message})`);
+    return {};
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    errors.push("redirects.json: ожидался объект {старый адрес: id}");
+    return {};
+  }
+  for (const [key, value] of Object.entries(data)) {
+    if (!key.trim() || typeof value !== "string" || !value.trim()) {
+      errors.push(`redirects.json: некорректная запись "${key}"`);
+    }
+  }
+  return data;
+}
+
+/** Индекс объектов вне вики: справочники, рецепты, калькуляторы. */
+function loadTypedObjects(contentDir, errors) {
+  const objects = {
+    reference: new Set(),
+    recipe: new Set(),
+    calc: new Set(),
+  };
+
+  const addObjects = (parsed, where, target) => {
+    const add = (value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        errors.push(`${where}: элемент должен быть объектом с полем id`);
+        return;
+      }
+      if (typeof value.id !== "string" || !value.id.trim()) {
+        errors.push(`${where}: у объекта нет строкового id`);
+        return;
+      }
+      target.add(value.id.trim());
+    };
+    if (Array.isArray(parsed)) {
+      parsed.forEach(add);
+    } else if (parsed && typeof parsed === "object" && Array.isArray(parsed.items)) {
+      if (typeof parsed.id === "string") add(parsed);
+      parsed.items.forEach(add);
+    } else {
+      add(parsed);
+    }
+  };
+
+  for (const [dir, target] of [
+    ["reference", objects.reference],
+    ["recipes", objects.recipe],
+  ]) {
+    for (const rel of walkFiles(path.join(contentDir, dir))) {
+      if (!rel.endsWith(".json")) continue;
+      const full = path.join(contentDir, dir, rel);
+      try {
+        addObjects(JSON.parse(fs.readFileSync(full, "utf8")), `${dir}/${rel}`, target);
+      } catch (error) {
+        errors.push(`${dir}/${rel}: не разбирается как JSON (${error.message})`);
+      }
+    }
+  }
+
+  const calcFile = path.join(contentDir, "calculators.json");
+  if (fs.existsSync(calcFile)) {
+    try {
+      addObjects(JSON.parse(fs.readFileSync(calcFile, "utf8")), "calculators.json", objects.calc);
+    } catch (error) {
+      errors.push(`calculators.json: не разбирается как JSON (${error.message})`);
+    }
+  }
+  return objects;
+}
+
+function resolveLink(target, ids, redirects, objects) {
+  if (target.startsWith("calc:")) {
+    return objects.calc.has(target.slice("calc:".length));
+  }
+  if (target.startsWith("ref:")) {
+    const key = target.slice("ref:".length);
+    return objects.reference.has(key) || ids.has(`reference/${key}`);
+  }
+  if (target.startsWith("recipe:")) {
+    const key = target.slice("recipe:".length);
+    return objects.recipe.has(key) || ids.has(`recipes/${key}`);
+  }
+  if (target.startsWith("/articles/")) {
+    return Object.prototype.hasOwnProperty.call(redirects, target);
+  }
+  if (ids.has(target)) return true;
+  if (Object.prototype.hasOwnProperty.call(redirects, target)) return true;
+  if (Object.prototype.hasOwnProperty.call(redirects, `/articles/${target}`)) return true;
+  return false;
+}
+
+function checkMedia(article, contentDir, errors) {
+  const imageRe = /!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
+  for (const match of article.body.matchAll(imageRe)) {
+    const rawUrl = match[2];
+    if (/^(https?:|data:|\/\/)/i.test(rawUrl)) {
+      errors.push(`${article.packagePath}: внешняя картинка запрещена (${rawUrl})`);
+      continue;
+    }
+    let url;
+    try {
+      url = decodeURIComponent(rawUrl);
+    } catch {
+      url = rawUrl;
+    }
+    if (url.split("/").includes("..")) {
+      errors.push(`${article.packagePath}: путь картинки выходит за пределы пакета (${rawUrl})`);
+      continue;
+    }
+    const clean = url.replace(/^\.\//, "");
+    const candidates = url.startsWith("/")
+      ? [clean.replace(/^\/+/, "")]
+      : [
+          POSIX.normalize(POSIX.join(POSIX.dirname(article.packagePath), clean)),
+          POSIX.normalize(clean),
+        ];
+    if (!candidates.some((rel) => fs.existsSync(path.join(contentDir, rel)))) {
+      errors.push(`${article.packagePath}: не найдена картинка ${rawUrl}`);
+    }
+  }
+}
+
+export function analyzeContent(contentDir) {
+  const errors = [];
+  const warnings = [];
+  const articles = loadArticles(contentDir, errors);
+  const redirects = loadRedirects(contentDir, errors);
+  const objects = loadTypedObjects(contentDir, errors);
+
+  const ids = new Set();
+  for (const article of articles) {
+    if (ids.has(article.id)) errors.push(`дубль id: ${article.id}`);
+    ids.add(article.id);
+  }
+
+  for (const [from, to] of Object.entries(redirects)) {
+    if (ids.has(from)) {
+      errors.push(`redirects.json: "${from}" — это существующий id, редирект не нужен`);
+    }
+    if (!ids.has(to)) {
+      errors.push(`redirects.json: "${from}" ведёт на несуществующий id "${to}"`);
+    } else if (Object.prototype.hasOwnProperty.call(redirects, to)) {
+      errors.push(`redirects.json: цепочка редиректов "${from}" → "${to}"`);
+    }
+  }
+
+  let linkCount = 0;
+  for (const article of articles) {
+    for (const match of article.body.matchAll(/\[\[([^\]]+)\]\]/g)) {
+      linkCount++;
+      const raw = match[1];
+      const target = raw.split("|")[0].trim();
+      if (!target) {
+        errors.push(`${article.packagePath}: пустая ссылка [[…]]`);
+        continue;
+      }
+      if (!resolveLink(target, ids, redirects, objects)) {
+        errors.push(`${article.packagePath}: битая ссылка [[${raw}]]`);
+      }
+    }
+
+    for (const match of article.body.matchAll(/\]\(\/articles\/[^)]+\)/g)) {
+      errors.push(
+        `${article.packagePath}: старая ссылка ${match[0]} — перезапустите импортёр`,
+      );
+    }
+    checkMedia(article, contentDir, errors);
+  }
+
+  const imported = articles.filter((article) => article.data.source === "moonshinewiki").length;
+  const manual = articles.filter((article) => article.data.source === "manual").length;
+  const withoutSources = articles
+    .filter(
+      (article) =>
+        !Array.isArray(article.data.sources) || article.data.sources.length === 0,
+    )
+    .map((article) => article.id);
+
+  const stats = {
+    total: articles.length,
+    imported,
+    manual,
+    other: articles.length - imported - manual,
+    withoutSources,
+    redirects: Object.keys(redirects).length,
+    links: linkCount,
+    files: 0,
+  };
+
+  return { errors, warnings, articles, redirects, objects, stats };
+}
+

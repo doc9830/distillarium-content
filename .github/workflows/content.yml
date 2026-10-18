@@ -1,0 +1,83 @@
+name: Content
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ["content-20*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Сборка пакета
+        run: node tools/build-content.mjs
+
+      - name: Проверка пакета
+        run: node tools/validate-content.mjs
+
+      - name: Проверка воспроизводимости
+        run: |
+          first=$(sha256sum dist/content-pack.zip | cut -d' ' -f1)
+          node tools/build-content.mjs >/dev/null
+          second=$(sha256sum dist/content-pack.zip | cut -d' ' -f1)
+          if [ "$first" != "$second" ]; then
+            echo "Пакет невоспроизводим: $first != $second"
+            exit 1
+          fi
+          node tools/validate-content.mjs >/dev/null
+
+      - name: Проверка целостности архива
+        run: unzip -t dist/content-pack.zip
+
+      - name: Артефакты сборки
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-pack
+          path: |
+            dist/content-pack.zip
+            dist/manifest.json
+            dist/build-report.json
+          if-no-files-found: error
+
+      - name: Публикация релиза по тегу
+        if: startsWith(github.ref, 'refs/tags/content-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes "Пакет контента $TAG. Проверен валидатором." \
+              --verify-tag
+          gh release upload "$TAG" \
+            dist/content-pack.zip dist/manifest.json --clobber
+
+      - name: Обновление content-latest
+        if: startsWith(github.ref, 'refs/tags/content-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f content-latest
+          git push -f origin content-latest
+          gh release view content-latest >/dev/null 2>&1 || \
+            gh release create content-latest --verify-tag \
+              --title "content-latest" \
+              --notes "Всегда последний проверенный пакет контента."
+          gh release upload content-latest \
+            dist/content-pack.zip dist/manifest.json --clobber

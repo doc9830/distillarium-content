@@ -1,0 +1,16 @@
+{
+  "name": "distillarium-content",
+  "version": "2026.10.1",
+  "private": true,
+  "type": "module",
+  "description": "Контент «Дистиллярия»: вики, справочники, рецепты, медиа и сборка пакета",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node tools/build-content.mjs",
+    "validate": "node tools/validate-content.mjs",
+    "check": "npm run build && npm run validate"
+  }
+}
