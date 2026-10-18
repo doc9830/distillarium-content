@@ -398,7 +398,10 @@ function loadTypedObjects(contentDir, errors) {
     reference: new Set(),
     recipe: new Set(),
     calc: new Set(),
+    recipes: [],
   };
+  const referenceTables = [];
+  const recipeTemplates = [];
 
   const addObjects = (parsed, where, target) => {
     const add = (value) => {
@@ -422,18 +425,170 @@ function loadTypedObjects(contentDir, errors) {
     }
   };
 
-  for (const [dir, target] of [
-    ["reference", objects.reference],
-    ["recipes", objects.recipe],
-  ]) {
-    for (const rel of walkFiles(path.join(contentDir, dir))) {
-      if (!rel.endsWith(".json")) continue;
-      const full = path.join(contentDir, dir, rel);
-      try {
-        addObjects(JSON.parse(fs.readFileSync(full, "utf8")), `${dir}/${rel}`, target);
-      } catch (error) {
-        errors.push(`${dir}/${rel}: не разбирается как JSON (${error.message})`);
+  const validateReference = (data, where, expectedId) => {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      errors.push(`${where}: ожидался объект справочной таблицы`);
+      return;
+    }
+    if (typeof data.id !== "string" || !data.id.trim()) {
+      errors.push(`${where}: у таблицы нет строкового id`);
+    } else if (data.id.trim() !== expectedId) {
+      errors.push(`${where}: id "${data.id}" не совпадает с именем файла "${expectedId}"`);
+    }
+    if (typeof data.title !== "string" || !data.title.trim()) {
+      errors.push(`${where}: пустой title`);
+    }
+    if (typeof data.short !== "string" || !data.short.trim()) {
+      errors.push(`${where}: пустой short`);
+    }
+    if (!Array.isArray(data.columns) || data.columns.length === 0) {
+      errors.push(`${where}: нужен непустой массив columns`);
+      return;
+    }
+    const keys = new Set();
+    data.columns.forEach((column, index) => {
+      if (!column || typeof column !== "object" || Array.isArray(column)) {
+        errors.push(`${where}: колонка ${index + 1} должна быть объектом`);
+        return;
       }
+      if (typeof column.key !== "string" || !column.key.trim()) {
+        errors.push(`${where}: у колонки ${index + 1} нет key`);
+        return;
+      }
+      if (keys.has(column.key)) {
+        errors.push(`${where}: дубль колонки ${column.key}`);
+      }
+      keys.add(column.key);
+      if (typeof column.title !== "string" || !column.title.trim()) {
+        errors.push(`${where}: у колонки ${column.key} нет title`);
+      }
+    });
+    if (!Array.isArray(data.rows) || data.rows.length === 0) {
+      errors.push(`${where}: нужен непустой массив rows`);
+      return;
+    }
+    data.rows.forEach((row, index) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) {
+        errors.push(`${where}: строка ${index + 1} должна быть объектом`);
+        return;
+      }
+      for (const key of keys) {
+        if (!(key in row)) {
+          errors.push(`${where}: в строке ${index + 1} нет колонки ${key}`);
+        }
+      }
+    });
+    if (data.calc !== undefined && typeof data.calc !== "string") {
+      errors.push(`${where}: calc должен быть строкой с id калькулятора`);
+    }
+    referenceTables.push({ where, calc: data.calc });
+  };
+
+  for (const rel of walkFiles(path.join(contentDir, "reference"))) {
+    if (!rel.endsWith(".json")) continue;
+    const full = path.join(contentDir, "reference", rel);
+    const expectedId = rel.slice(0, -".json".length);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(full, "utf8"));
+      validateReference(parsed, `reference/${rel}`, expectedId);
+      addObjects(parsed, `reference/${rel}`, objects.reference);
+    } catch (error) {
+      errors.push(`reference/${rel}: не разбирается как JSON (${error.message})`);
+    }
+  }
+
+  const validateRecipe = (data, where, expectedId) => {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      errors.push(`${where}: ожидался объект шаблона рецепта`);
+      return;
+    }
+    if (typeof data.id !== "string" || !data.id.trim()) {
+      errors.push(`${where}: у рецепта нет строкового id`);
+    } else if (data.id.trim() !== expectedId) {
+      errors.push(`${where}: id "${data.id}" не совпадает с именем файла "${expectedId}"`);
+    }
+    if (typeof data.title !== "string" || !data.title.trim()) {
+      errors.push(`${where}: пустой title`);
+    }
+    if (typeof data.short !== "string" || !data.short.trim()) {
+      errors.push(`${where}: пустой short`);
+    }
+    if (!["distillate", "wine", "beer", "other"].includes(data.type)) {
+      errors.push(`${where}: type должен быть distillate, wine, beer или other`);
+    }
+    if (typeof data.volume !== "number" || !Number.isFinite(data.volume) || data.volume <= 0) {
+      errors.push(`${where}: volume должен быть положительным числом`);
+    }
+    if (data.expected !== undefined) {
+      if (!data.expected || typeof data.expected !== "object" || Array.isArray(data.expected)) {
+        errors.push(`${where}: expected должен быть объектом`);
+      } else {
+        for (const field of ["volume", "abv"]) {
+          if (
+            data.expected[field] !== undefined &&
+            (typeof data.expected[field] !== "number" || data.expected[field] <= 0)
+          ) {
+            errors.push(`${where}: expected.${field} должен быть положительным числом`);
+          }
+        }
+        if (data.expected.note !== undefined && typeof data.expected.note !== "string") {
+          errors.push(`${where}: expected.note должен быть строкой`);
+        }
+      }
+    }
+    if (data.ingredients !== undefined) {
+      if (!Array.isArray(data.ingredients)) {
+        errors.push(`${where}: ingredients должен быть массивом`);
+      } else {
+        data.ingredients.forEach((item, index) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            errors.push(`${where}: ингредиент ${index + 1} должен быть объектом`);
+            return;
+          }
+          if (typeof item.name !== "string" || !item.name.trim()) {
+            errors.push(`${where}: у ингредиента ${index + 1} нет name`);
+          }
+          if (typeof item.amount !== "string" || !item.amount.trim()) {
+            errors.push(`${where}: у ингредиента ${index + 1} нет amount`);
+          }
+        });
+      }
+    }
+    if (!Array.isArray(data.steps) || data.steps.length === 0) {
+      errors.push(`${where}: нужен непустой массив steps`);
+      return;
+    }
+    data.steps.forEach((step, index) => {
+      if (!step || typeof step !== "object" || Array.isArray(step)) {
+        errors.push(`${where}: шаг ${index + 1} должен быть объектом`);
+        return;
+      }
+      if (typeof step.title !== "string" || !step.title.trim()) {
+        errors.push(`${where}: у шага ${index + 1} нет title`);
+      }
+      if (
+        step.afterDays !== undefined &&
+        (!Number.isInteger(step.afterDays) || step.afterDays < 0)
+      ) {
+        errors.push(`${where}: afterDays шага ${index + 1} должен быть целым числом ≥ 0`);
+      }
+      if (step.wikiId !== undefined && (typeof step.wikiId !== "string" || !step.wikiId.trim())) {
+        errors.push(`${where}: wikiId шага ${index + 1} должен быть непустой строкой`);
+      }
+    });
+    recipeTemplates.push({ where, data });
+  };
+
+  for (const rel of walkFiles(path.join(contentDir, "recipes"))) {
+    if (!rel.endsWith(".json")) continue;
+    const full = path.join(contentDir, "recipes", rel);
+    const expectedId = rel.slice(0, -".json".length);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(full, "utf8"));
+      validateRecipe(parsed, `recipes/${rel}`, expectedId);
+      addObjects(parsed, `recipes/${rel}`, objects.recipe);
+    } catch (error) {
+      errors.push(`recipes/${rel}: не разбирается как JSON (${error.message})`);
     }
   }
 
@@ -445,6 +600,13 @@ function loadTypedObjects(contentDir, errors) {
       errors.push(`calculators.json: не разбирается как JSON (${error.message})`);
     }
   }
+
+  for (const table of referenceTables) {
+    if (typeof table.calc === "string" && !objects.calc.has(table.calc)) {
+      errors.push(`${table.where}: calc "${table.calc}" не найден в calculators.json`);
+    }
+  }
+  objects.recipes = recipeTemplates;
   return objects;
 }
 
@@ -513,6 +675,16 @@ export function analyzeContent(contentDir) {
     ids.add(article.id);
   }
 
+  for (const recipe of objects.recipes) {
+    recipe.data.steps?.forEach((step, index) => {
+      if (typeof step.wikiId === "string" && !ids.has(step.wikiId)) {
+        errors.push(
+          `${recipe.where}: шаг ${index + 1} ссылается на несуществующую статью "${step.wikiId}"`,
+        );
+      }
+    });
+  }
+
   for (const [from, to] of Object.entries(redirects)) {
     if (ids.has(from)) {
       errors.push(`redirects.json: "${from}" — это существующий id, редирект не нужен`);
@@ -564,6 +736,8 @@ export function analyzeContent(contentDir) {
     withoutSources,
     redirects: Object.keys(redirects).length,
     links: linkCount,
+    tables: objects.reference.size,
+    recipes: objects.recipe.size,
     files: 0,
   };
 

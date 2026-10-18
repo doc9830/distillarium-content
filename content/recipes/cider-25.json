@@ -1,0 +1,28 @@
+{
+  "id": "cider-25",
+  "title": "Яблочный сидр",
+  "short": "Натурально газированный сухой сидр на 20 литров.",
+  "type": "wine",
+  "volume": 20,
+  "expected": {
+    "volume": 20,
+    "abv": 5.8,
+    "note": "Ориентировочная крепость по разнице показаний АС-3 из рецепта."
+  },
+  "ingredients": [
+    { "name": "Яблоки", "amount": "30–40 кг" },
+    { "name": "Дрожжи Mangrove Jack’s M02", "amount": "9 г" },
+    { "name": "Подкормка Beervingem", "amount": "по инструкции" },
+    { "name": "Декстроза для карбонизации", "amount": "7 г/л" }
+  ],
+  "steps": [
+    { "title": "Отжать 20 л сока и записать начальную сахаристость", "afterDays": 0 },
+    { "title": "Продезинфицировать оборудование", "afterDays": 0 },
+    { "title": "Внести подкормку и дрожжи M02", "afterDays": 0, "wikiId": "processes/ferment/primary" },
+    { "title": "Проверить начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
+    { "title": "Сбраживать при 18–22 °C до стабильных показаний 48 часов", "afterDays": 14, "wikiId": "problems/stuck-ferment" },
+    { "title": "Снять с осадка и добавить 7 г/л декстрозы", "afterDays": 2, "wikiId": "processes/separate/racking" },
+    { "title": "Разлить в бутылки для давления и карбонизировать 2 недели", "afterDays": 1 },
+    { "title": "Убрать бутылки в прохладное место", "afterDays": 14 }
+  ]
+}

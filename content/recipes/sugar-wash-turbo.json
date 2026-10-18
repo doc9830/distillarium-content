@@ -1,0 +1,25 @@
+{
+  "id": "sugar-wash-turbo",
+  "title": "Брага на турбо-дрожжах",
+  "short": "Быстрая сахарная брага на готовой турбо-смеси.",
+  "type": "distillate",
+  "volume": 28,
+  "expected": {
+    "volume": 28,
+    "abv": 12,
+    "note": "Гидромодуль и температура — по инструкции на упаковке турбо-смеси."
+  },
+  "ingredients": [
+    { "name": "Сахар", "amount": "6 кг" },
+    { "name": "Вода", "amount": "24 л" },
+    { "name": "Турбо-дрожжи", "amount": "по инструкции" }
+  ],
+  "steps": [
+    { "title": "Подготовить ёмкость с запасом под пену", "afterDays": 0, "wikiId": "equipment/airlock" },
+    { "title": "Растворить сахар в воде", "afterDays": 0 },
+    { "title": "Внести турбо-дрожжи", "afterDays": 0, "wikiId": "raw/distiller-yeast" },
+    { "title": "Проверить температуру и начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
+    { "title": "Дождаться окончания брожения", "afterDays": 5, "wikiId": "problems/stuck-ferment" },
+    { "title": "Снять с осадка и перегнать", "afterDays": 2, "wikiId": "processes/separate/first-run" }
+  ]
+}

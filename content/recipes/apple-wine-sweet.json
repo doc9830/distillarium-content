@@ -1,0 +1,30 @@
+{
+  "id": "apple-wine-sweet",
+  "title": "Яблочное вино",
+  "short": "Тихое яблочное вино с регулируемой сладостью.",
+  "type": "wine",
+  "volume": 20,
+  "expected": {
+    "volume": 20,
+    "abv": 6.4,
+    "note": "Ориентировочная крепость по разнице показаний АС-3 из рецепта."
+  },
+  "ingredients": [
+    { "name": "Яблоки", "amount": "30–40 кг" },
+    { "name": "Дрожжи Mangrove Jack’s M02", "amount": "9 г" },
+    { "name": "Подкормка Beervingem", "amount": "по инструкции" },
+    { "name": "Декстроза", "amount": "для сахаристости и сладости" }
+  ],
+  "steps": [
+    { "title": "Отжать 20 л сока и записать начальную сахаристость", "afterDays": 0 },
+    { "title": "Продезинфицировать оборудование", "afterDays": 0 },
+    { "title": "Внести подкормку и дрожжи M02", "afterDays": 0, "wikiId": "processes/ferment/primary" },
+    { "title": "Проверить начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
+    { "title": "Сбраживать при 18–22 °C до стабильных показаний 48 часов", "afterDays": 14, "wikiId": "problems/stuck-ferment" },
+    { "title": "Снять вино с основного осадка", "afterDays": 2, "wikiId": "processes/separate/racking" },
+    { "title": "Внести остановитель брожения и выдержать 24–48 часов", "afterDays": 2 },
+    { "title": "Осветлить Винофлоком и снять с осадка", "afterDays": 1, "wikiId": "processes/finish/fining" },
+    { "title": "Отрегулировать сладость декстрозой", "afterDays": 2 },
+    { "title": "Разлить по бутылкам и хранить в прохладе", "afterDays": 1 }
+  ]
+}

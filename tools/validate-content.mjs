@@ -53,6 +53,7 @@ console.log(
 );
 console.log(`  Файлов в манифесте: ${stats.files}`);
 console.log(`  Ссылок проверено: ${stats.links}`);
+console.log(`  Справочных таблиц: ${stats.tables}`);
 console.log(`  Редиректов: ${stats.redirects}`);
 console.log(`  Статей без источников: ${stats.withoutSources.length}`);
 console.log(`  Размер распакованного пакета: ${formatBytes(measureDir(target))}`);

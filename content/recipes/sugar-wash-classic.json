@@ -1,0 +1,25 @@
+{
+  "id": "sugar-wash-classic",
+  "title": "Классическая сахарная брага",
+  "short": "Сахар, вода и дрожжи — простая брага для первой перегонки.",
+  "type": "distillate",
+  "volume": 28,
+  "expected": {
+    "volume": 28,
+    "abv": 12,
+    "note": "Крепость зависит от дрожжей, температуры и фактического гидромодуля."
+  },
+  "ingredients": [
+    { "name": "Сахар", "amount": "6 кг" },
+    { "name": "Вода", "amount": "24 л" },
+    { "name": "Спиртовые дрожжи", "amount": "по инструкции" }
+  ],
+  "steps": [
+    { "title": "Подготовить ёмкость, гидрозатвор и дезинфекцию", "afterDays": 0, "wikiId": "equipment/airlock" },
+    { "title": "Растворить сахар в воде", "afterDays": 0 },
+    { "title": "Внести дрожжи по инструкции", "afterDays": 0 },
+    { "title": "Проверить начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
+    { "title": "Дождаться окончания брожения и проверить плотность", "afterDays": 7, "wikiId": "problems/stuck-ferment" },
+    { "title": "Снять с осадка и перегнать", "afterDays": 3, "wikiId": "processes/separate/first-run" }
+  ]
+}

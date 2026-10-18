@@ -1,0 +1,24 @@
+{
+  "id": "wheat-sour-starter",
+  "title": "Брага на пшенице (кислый затор)",
+  "short": "Сахарное сусло на дикой пшеничной закваске.",
+  "type": "distillate",
+  "volume": 28,
+  "expected": {
+    "volume": 28,
+    "abv": 10,
+    "note": "Дикая культура менее предсказуема: ориентируйтесь на плотность и вкус."
+  },
+  "ingredients": [
+    { "name": "Пшеница", "amount": "для закваски" },
+    { "name": "Сахар", "amount": "по расчёту" },
+    { "name": "Вода", "amount": "по гидромодулю" }
+  ],
+  "steps": [
+    { "title": "Приготовить пшеничную закваску с водой и сахаром", "afterDays": 0, "wikiId": "raw/yeast" },
+    { "title": "Дождаться пены, газа и кисловатого запаха", "afterDays": 3 },
+    { "title": "Внести закваску в сахарное сусло", "afterDays": 0, "wikiId": "processes/ferment/primary" },
+    { "title": "Дождаться окончания основного брожения", "afterDays": 7, "wikiId": "problems/stuck-ferment" },
+    { "title": "Снять с осадка и перегнать", "afterDays": 3, "wikiId": "processes/separate/first-run" }
+  ]
+}

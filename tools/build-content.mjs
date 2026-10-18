@@ -139,6 +139,8 @@ function main() {
     other: result.stats.other,
     files: result.stats.files,
     links: result.stats.links,
+    tables: result.stats.tables,
+    recipes: result.stats.recipes,
     redirects: result.stats.redirects,
     withoutSources: result.stats.withoutSources,
     packSize: pack.size,
@@ -163,6 +165,7 @@ function main() {
   );
   console.log(`  Файлов в манифесте: ${result.stats.files}`);
   console.log(`  Ссылок проверено: ${result.stats.links}`);
+  console.log(`  Справочных таблиц: ${result.stats.tables}`);
   console.log(`  Редиректов: ${result.stats.redirects}`);
   console.log(`  Размер пакета: ${formatBytes(pack.size)} (${pack.size} Б)`);
   console.log(`  sha256 пакета: ${pack.sha256}`);

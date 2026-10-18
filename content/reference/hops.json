@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "hops",
+  "title": "Хмель: горечь и аромат",
+  "short": "Альфа- и бета-кислоты популярных сортов и их назначение.",
+  "source": "https://www.hopsteiner.com/variety-data-sheets/",
+  "sourceLabel": "Hopsteiner, сортовые листы",
+  "updated": "2026-10-18",
+  "note": "Альфа-кислота меняется от года и региона. Для расчёта IBU берите значение с упаковки.",
+  "columns": [
+    { "key": "variety", "title": "Сорт" },
+    { "key": "alpha", "title": "Альфа", "unit": "%", "numeric": true },
+    { "key": "beta", "title": "Бета", "unit": "%", "numeric": true },
+    { "key": "aroma", "title": "Аромат" },
+    { "key": "use", "title": "Назначение" },
+    { "key": "note", "title": "Особенность" }
+  ],
+  "rows": [
+    { "variety": "Magnum", "alpha": "12–14", "beta": "4–6", "aroma": "Нейтральный", "use": "Горечь", "note": "Чистая горечь без лишнего аромата" },
+    { "variety": "Hallertau Mittelfrüh", "alpha": "3–5", "beta": "4–5", "aroma": "Цветочный, травяной", "use": "Аромат", "note": "Классика немецких лагеров" },
+    { "variety": "Saaz", "alpha": "2–4", "beta": "4–6", "aroma": "Пряный, землистый", "use": "Аромат", "note": "Основа чешского пильзнера" },
+    { "variety": "Cascade", "alpha": "4,5–7", "beta": "5–7", "aroma": "Цитрус, грейпфрут", "use": "Аромат", "note": "Американский Pale Ale" },
+    { "variety": "Citra", "alpha": "10–14", "beta": "3,5–5", "aroma": "Тропические фрукты", "use": "Аромат и горечь", "note": "Мощный аромат, легко переборщить" },
+    { "variety": "Mosaic", "alpha": "11–14", "beta": "3–4", "aroma": "Ягоды, цитрус", "use": "Аромат и горечь", "note": "Хорош в одиночку" },
+    { "variety": "Simcoe", "alpha": "12–14", "beta": "4–5", "aroma": "Сосна, цитрус", "use": "Горечь и аромат", "note": "Американские IPA" },
+    { "variety": "Chinook", "alpha": "12–14", "beta": "3–4", "aroma": "Сосна, пряности", "use": "Горечь", "note": "Жёсткая горечь, добавлять раньше" },
+    { "variety": "Fuggle", "alpha": "4–5,5", "beta": "2–3", "aroma": "Травяной, землистый", "use": "Аромат", "note": "Английские эли" },
+    { "variety": "East Kent Goldings", "alpha": "4–6", "beta": "2–3", "aroma": "Медовый, пряный", "use": "Аромат", "note": "Классика британского эля" }
+  ]
+}

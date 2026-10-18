@@ -91,6 +91,14 @@ export function writePackage(sourceDir, outDir, options = {}) {
   for (const dir of ["reference", "recipes", "media"]) {
     copyAssets(sourceDir, outDir, dir, assetErrors);
   }
+  const calculatorsFile = path.join(sourceDir, "calculators.json");
+  if (fs.existsSync(calculatorsFile)) {
+    try {
+      fs.copyFileSync(calculatorsFile, path.join(outDir, "calculators.json"));
+    } catch (error) {
+      assetErrors.push(`calculators.json: не скопирован (${error.message})`);
+    }
+  }
 
   const searchIndex = buildSearchIndex(analysis.articles);
   const searchDir = path.join(outDir, "search");
