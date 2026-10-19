@@ -11,6 +11,8 @@ import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
+  TREE_FILE,
+  TREE_SCHEMA_VERSION,
   analyzeContent,
   parseFrontmatter,
   stringifyFrontmatter,
@@ -193,6 +195,47 @@ function normalizeArticleData(input, id, { creating }) {
   return normalized;
 }
 
+function normalizeTree(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new ApiError(400, "дерево должно быть объектом {schemaVersion, roots}");
+  }
+  if (!Array.isArray(input.roots)) {
+    throw new ApiError(400, "roots должен быть массивом");
+  }
+  const seen = new Set();
+  const walk = (node, where, depth) => {
+    if (!node || typeof node !== "object" || Array.isArray(node)) {
+      throw new ApiError(400, `${where}: раздел должен быть объектом`);
+    }
+    if (depth > 4) {
+      throw new ApiError(400, `${where}: больше четырёх уровней вложенности`);
+    }
+    const id = asString(node.id).trim();
+    if (!isValidArticleId(id)) {
+      throw new ApiError(400, `${where}: некорректный id раздела`);
+    }
+    if (seen.has(id)) throw new ApiError(400, `дубль id раздела "${id}"`);
+    seen.add(id);
+    const title = asString(node.title).trim();
+    if (!title) throw new ApiError(400, `${where}: пустой title раздела`);
+    const articles = asStringArray(node.articles ?? [], `${where}.articles`);
+    const children = node.children ?? [];
+    if (!Array.isArray(children)) throw new ApiError(400, `${where}: children должен быть массивом`);
+    return {
+      id,
+      title,
+      articles,
+      children: children.map((child, index) =>
+        walk(child, `${where} → child ${index + 1}`, depth + 1),
+      ),
+    };
+  };
+  return {
+    schemaVersion: TREE_SCHEMA_VERSION,
+    roots: input.roots.map((node, index) => walk(node, `root ${index + 1}`, 1)),
+  };
+}
+
 export class ContentStore {
   constructor(root = DEFAULT_ROOT) {
     this.root = path.resolve(root);
@@ -200,6 +243,7 @@ export class ContentStore {
     this.wikiDir = path.join(this.contentDir, "wiki");
     this.redirectsFile = path.join(this.contentDir, "redirects.json");
     this.versionFile = path.join(this.contentDir, "version.json");
+    this.treeFile = path.join(this.contentDir, TREE_FILE);
     this.packageFile = path.join(this.root, "package.json");
   }
 
@@ -297,6 +341,7 @@ export class ContentStore {
     redirects[id] = newId;
     writeJson(this.redirectsFile, redirects);
     this.rewriteRecipeReferences(id, newId);
+    this.updateTreeReferences(id, newId);
     return { article: this.readArticle(newId), validation: this.validation() };
   }
 
@@ -314,6 +359,7 @@ export class ContentStore {
     }
     fs.unlinkSync(file);
     this.removeEmptyDirs(path.dirname(file));
+    this.updateTreeReferences(id);
     if (target) {
       const redirects = this.retargetRedirects(id, target);
       redirects[id] = target;
@@ -389,6 +435,50 @@ export class ContentStore {
     };
   }
 
+
+  readTree() {
+    return readJson(this.treeFile, {
+      schemaVersion: TREE_SCHEMA_VERSION,
+      roots: [],
+    });
+  }
+
+  saveTree(data) {
+    const tree = normalizeTree(data);
+    const before = fs.existsSync(this.treeFile)
+      ? fs.readFileSync(this.treeFile, "utf8")
+      : null;
+    writeJson(this.treeFile, tree);
+    const validation = this.validation();
+    const treeErrors = validation.errors.filter((item) => item.startsWith(`${TREE_FILE}:`));
+    if (treeErrors.length) {
+      if (before === null) fs.rmSync(this.treeFile, { force: true });
+      else atomicWrite(this.treeFile, before);
+      throw new ApiError(422, "дерево не прошло проверку", { errors: treeErrors });
+    }
+    return { tree: this.readTree(), validation };
+  }
+
+  updateTreeReferences(oldId, newId = "") {
+    if (!fs.existsSync(this.treeFile)) return;
+    const tree = this.readTree();
+    let changed = false;
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node.articles)) {
+        const next = newId
+          ? node.articles.map((id) => (id === oldId ? newId : id))
+          : node.articles.filter((id) => id !== oldId);
+        if (next.length !== node.articles.length || next.some((id, index) => id !== node.articles[index])) {
+          node.articles = next;
+          changed = true;
+        }
+      }
+      (node.children ?? []).forEach(walk);
+    };
+    tree.roots?.forEach(walk);
+    if (changed) writeJson(this.treeFile, normalizeTree(tree));
+  }
 
   saveReference(id, data) {
     assertDataId(id);
@@ -649,6 +739,7 @@ export class ContentStore {
       nextVersion: nextContentVersion(data.version.contentVersion),
       articles,
       categories,
+      tree: this.readTree(),
       data,
       media: this.listMedia(),
       git: this.gitState(),

@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "roots": [
+    {
+      "id": "moonshine",
+      "title": "Самогоноварение",
+      "articles": [],
+      "children": [
+        {
+          "id": "moonshine/raw",
+          "title": "Сырьё",
+          "articles": [
+            "raw/sugar-glucose",
+            "raw/yeast",
+            "raw/distiller-yeast"
+          ],
+          "children": []
+        },
+        {
+          "id": "moonshine/fermentation",
+          "title": "Брожение",
+          "articles": [
+            "processes/ferment/primary"
+          ],
+          "children": []
+        },
+        {
+          "id": "moonshine/distillation",
+          "title": "Перегонка",
+          "articles": [
+            "processes/separate/first-run",
+            "processes/separate/fractional",
+            "processes/separate/heads-hearts-tails",
+            "processes/separate/second-run-pot",
+            "processes/separate/second-run-column"
+          ],
+          "children": []
+        },
+        {
+          "id": "moonshine/finishing",
+          "title": "Обработка и финиш",
+          "articles": [
+            "processes/finish/dilution"
+          ],
+          "children": []
+        },
+        {
+          "id": "moonshine/problems",
+          "title": "Проблемы",
+          "articles": [
+            "problems/no-bubbles",
+            "problems/stuck-ferment",
+            "problems/low-abv",
+            "problems/off-flavour"
+          ],
+          "children": []
+        },
+        {
+          "id": "moonshine/recipes",
+          "title": "Рецепты",
+          "articles": [
+            "recipes/sugar-wash-classic",
+            "recipes/sugar-wash-spirit-yeast",
+            "recipes/sugar-wash-turbo",
+            "recipes/wheat-sour-starter",
+            "recipes/wine-to-distillate"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "wine",
+      "title": "Виноделие",
+      "articles": [],
+      "children": [
+        {
+          "id": "wine/preparation",
+          "title": "Подготовка сырья",
+          "articles": [
+            "processes/prepare/grape"
+          ],
+          "children": []
+        },
+        {
+          "id": "wine/fermentation",
+          "title": "Брожение",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "wine/finishing",
+          "title": "Осветление и розлив",
+          "articles": [
+            "processes/separate/racking",
+            "processes/finish/fining"
+          ],
+          "children": []
+        },
+        {
+          "id": "wine/problems",
+          "title": "Проблемы",
+          "articles": [
+            "problems/high-acidity"
+          ],
+          "children": []
+        },
+        {
+          "id": "wine/recipes",
+          "title": "Рецепты",
+          "articles": [
+            "recipes/apple-wine-sweet",
+            "recipes/cider-25"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "beer",
+      "title": "Пивоварение",
+      "articles": [],
+      "children": [
+        {
+          "id": "beer/raw",
+          "title": "Сырьё",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "beer/brewing",
+          "title": "Затирание и кипячение",
+          "articles": [
+            "processes/beer/simple-brew"
+          ],
+          "children": []
+        },
+        {
+          "id": "beer/fermentation",
+          "title": "Брожение",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "beer/finishing",
+          "title": "Розлив",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "beer/recipes",
+          "title": "Рецепты",
+          "articles": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "equipment",
+      "title": "Оборудование",
+      "articles": [],
+      "children": [
+        {
+          "id": "equipment/stills",
+          "title": "Перегонные аппараты",
+          "articles": [
+            "equipment/still-pot",
+            "equipment/condenser",
+            "equipment/dephlegmator"
+          ],
+          "children": []
+        },
+        {
+          "id": "equipment/measurement",
+          "title": "Измерения",
+          "articles": [
+            "equipment/measurements",
+            "equipment/parrot",
+            "reference/hydrometer-temp"
+          ],
+          "children": []
+        },
+        {
+          "id": "equipment/auxiliary",
+          "title": "Вспомогательное",
+          "articles": [
+            "equipment/airlock"
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

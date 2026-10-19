@@ -142,6 +142,9 @@ function main() {
     tables: result.stats.tables,
     recipes: result.stats.recipes,
     redirects: result.stats.redirects,
+    treeNodes: result.stats.treeNodes,
+    treeArticles: result.stats.treeArticles,
+    unplaced: result.stats.unplaced,
     withoutSources: result.stats.withoutSources,
     packSize: pack.size,
     packSha256: pack.sha256,
@@ -167,6 +170,10 @@ function main() {
   console.log(`  Ссылок проверено: ${result.stats.links}`);
   console.log(`  Справочных таблиц: ${result.stats.tables}`);
   console.log(`  Редиректов: ${result.stats.redirects}`);
+  console.log(
+    `  Дерево: разделов ${result.stats.treeNodes}, статей ${result.stats.treeArticles}` +
+      (result.stats.unplaced?.length ? `, вне дерева ${result.stats.unplaced.length}` : ""),
+  );
   console.log(`  Размер пакета: ${formatBytes(pack.size)} (${pack.size} Б)`);
   console.log(`  sha256 пакета: ${pack.sha256}`);
   console.log(`  Статей без источников: ${result.stats.withoutSources.length}`);

@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   SCHEMA_VERSION,
+  TREE_FILE,
   analyzeContent,
   extractHeadings,
   formatBytes,
@@ -86,6 +87,11 @@ export function writePackage(sourceDir, outDir, options = {}) {
     `${JSON.stringify(analysis.redirects, null, 2)}\n`,
     "utf8",
   );
+
+  const treeFile = path.join(sourceDir, TREE_FILE);
+  if (fs.existsSync(treeFile)) {
+    fs.copyFileSync(treeFile, path.join(outDir, TREE_FILE));
+  }
 
   const assetErrors = [];
   for (const dir of ["reference", "recipes", "media"]) {

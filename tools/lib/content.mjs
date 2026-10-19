@@ -7,6 +7,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 export const SCHEMA_VERSION = 1;
+export const TREE_SCHEMA_VERSION = 1;
+export const TREE_FILE = "tree.json";
 export const REQUIRED_FIELDS = ["id", "title", "short"];
 export const FRONTMATTER_ORDER = [
   "id",
@@ -662,12 +664,141 @@ function checkMedia(article, contentDir, errors) {
   }
 }
 
+const TREE_ID_RE = /^[a-z0-9][a-z0-9/_-]*$/;
+
+/**
+ * Дерево навигации хранится отдельно от статей, чтобы:
+ * - менять разделы и порядок, не переименовывая id статей;
+ * - держать в дереве произвольные названия, а не только слаг пути;
+ * - разрешить редактору быть настоящим конструктором.
+ *
+ * articles — массив id статей. Каждая статья может стоять только в одном
+ * месте дерева; дополнительные входы дают теги.
+ */
+export function loadTree(contentDir, articleIds, errors, warnings = []) {
+  const file = path.join(contentDir, TREE_FILE);
+  if (!fs.existsSync(file)) return null;
+
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    errors.push(`${TREE_FILE}: не разбирается как JSON (${error.message})`);
+    return null;
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    errors.push(`${TREE_FILE}: ожидался объект {schemaVersion, roots}`);
+    return null;
+  }
+  if (data.schemaVersion !== TREE_SCHEMA_VERSION) {
+    errors.push(
+      `${TREE_FILE}: schemaVersion ${data.schemaVersion}, ожидается ${TREE_SCHEMA_VERSION}`,
+    );
+  }
+  if (!Array.isArray(data.roots)) {
+    errors.push(`${TREE_FILE}: roots должен быть массивом`);
+    return null;
+  }
+
+  const nodeIds = new Set();
+  const placed = new Map();
+  let nodeCount = 0;
+
+  const walk = (node, where, depth) => {
+    if (!node || typeof node !== "object" || Array.isArray(node)) {
+      errors.push(`${where}: раздел должен быть объектом`);
+      return;
+    }
+    if (depth > 4) {
+      errors.push(`${where}: больше четырёх уровней вложенности`);
+    }
+    nodeCount += 1;
+
+    const id = typeof node.id === "string" ? node.id.trim() : "";
+    const nodeWhere = id ? `${TREE_FILE}: раздел "${id}"` : where;
+    if (!id) {
+      errors.push(`${where}: у раздела нет строкового id`);
+    } else if (!TREE_ID_RE.test(id)) {
+      errors.push(
+        `${nodeWhere}: id раздела — строчные латинские буквы, цифры, «-», «_» и «/»`,
+      );
+    } else if (nodeIds.has(id)) {
+      errors.push(`${TREE_FILE}: дубль id раздела "${id}"`);
+    } else {
+      nodeIds.add(id);
+    }
+
+    if (typeof node.title !== "string" || !node.title.trim()) {
+      errors.push(`${nodeWhere}: пустой title раздела`);
+    }
+
+    const articles = node.articles === undefined ? [] : node.articles;
+    if (!Array.isArray(articles)) {
+      errors.push(`${nodeWhere}: articles должен быть массивом id статей`);
+    } else {
+      for (const item of articles) {
+        if (typeof item !== "string" || !item.trim()) {
+          errors.push(`${nodeWhere}: в articles есть пустое значение`);
+          continue;
+        }
+        const articleId = item.trim();
+        if (!articleIds.has(articleId)) {
+          errors.push(`${nodeWhere}: статья "${articleId}" не найдена`);
+          continue;
+        }
+        if (placed.has(articleId)) {
+          errors.push(
+            `${nodeWhere}: статья "${articleId}" уже стоит в разделе "${placed.get(articleId)}"`,
+          );
+          continue;
+        }
+        placed.set(articleId, id || where);
+      }
+    }
+
+    const children = node.children === undefined ? [] : node.children;
+    if (!Array.isArray(children)) {
+      errors.push(`${nodeWhere}: children должен быть массивом`);
+      return;
+    }
+    children.forEach((child, index) => {
+      walk(child, `${nodeWhere} → child ${index + 1}`, depth + 1);
+    });
+  };
+
+  data.roots.forEach((node, index) => {
+    walk(node, `${TREE_FILE}: root ${index + 1}`, 1);
+  });
+
+  const unplaced = [...articleIds].filter((id) => !placed.has(id));
+  if (unplaced.length) {
+    warnings.push(
+      `${TREE_FILE}: вне дерева ${unplaced.length} статей (${unplaced.slice(0, 5).join(", ")}${
+        unplaced.length > 5 ? ", …" : ""
+      })`,
+    );
+  }
+
+  return {
+    ...data,
+    schemaVersion: TREE_SCHEMA_VERSION,
+    roots: data.roots,
+    stats: {
+      nodes: nodeCount,
+      articles: placed.size,
+      unplaced,
+    },
+  };
+}
+
 export function analyzeContent(contentDir) {
   const errors = [];
   const warnings = [];
   const articles = loadArticles(contentDir, errors);
   const redirects = loadRedirects(contentDir, errors);
   const objects = loadTypedObjects(contentDir, errors);
+  const articleIds = new Set(articles.map((article) => article.id));
+  const tree = loadTree(contentDir, articleIds, errors, warnings);
 
   const ids = new Set();
   for (const article of articles) {
@@ -739,8 +870,11 @@ export function analyzeContent(contentDir) {
     tables: objects.reference.size,
     recipes: objects.recipe.size,
     files: 0,
+    treeNodes: tree?.stats.nodes ?? 0,
+    treeArticles: tree?.stats.articles ?? 0,
+    unplaced: tree?.stats.unplaced ?? [],
   };
 
-  return { errors, warnings, articles, redirects, objects, stats };
+  return { errors, warnings, articles, redirects, objects, tree, stats };
 }
 

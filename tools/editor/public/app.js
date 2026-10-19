@@ -32,6 +32,9 @@ const els = {
   updatedInput: $("updatedInput"),
   sourcesInput: $("sourcesInput"),
   bodyInput: $("bodyInput"),
+  editorBody: $("editorBody"),
+  writePane: $("writePane"),
+  livePreviewPane: $("livePreviewPane"),
   previewPane: $("previewPane"),
   outlinePane: $("outlinePane"),
   wordCount: $("wordCount"),
@@ -42,6 +45,23 @@ const els = {
   dataFileLabel: $("dataFileLabel"),
   dataStatus: $("dataStatus"),
   dataJson: $("dataJson"),
+  treeModal: $("treeModal"),
+  treeRoots: $("treeRoots"),
+  treeRootDrop: $("treeRootDrop"),
+  treeSummary: $("treeSummary"),
+  treeUnplaced: $("treeUnplaced"),
+  treeUnplacedCount: $("treeUnplacedCount"),
+  treeErrors: $("treeErrors"),
+  treeStatus: $("treeStatus"),
+  treeSaveBtn: $("treeSaveBtn"),
+  linkModal: $("linkModal"),
+  linkKindTabs: $("linkKindTabs"),
+  linkSearchInput: $("linkSearchInput"),
+  linkResults: $("linkResults"),
+  linkLabelInput: $("linkLabelInput"),
+  linkUrlField: $("linkUrlField"),
+  linkUrlInput: $("linkUrlInput"),
+  linkError: $("linkError"),
   publishModal: $("publishModal"),
   publishInfo: $("publishInfo"),
   commitMessage: $("commitMessage"),
@@ -62,6 +82,12 @@ let activeTab = "write";
 let dataSelection = null;
 let toastTimer = 0;
 let previewTimer = 0;
+let treeDraft = null;
+let treeDirty = false;
+let treeSequence = 0;
+let dragState = null;
+let linkKind = "article";
+let linkSelection = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -100,6 +126,11 @@ function openModal(id) {
 
 function closeModal(id) {
   $(id).hidden = true;
+}
+
+function requestCloseModal(id) {
+  if (id === "treeModal" && treeDirty && !confirm("Закрыть дерево без сохранения изменений?")) return;
+  closeModal(id);
 }
 
 function showOutput(title, subtitle, text) {
@@ -371,11 +402,23 @@ function updateWordCount() {
   els.wordCount.textContent = `${wordCount(els.bodyInput.value)} слов`;
 }
 
-function renderPreview() {
-  if (!state) return;
+function knownLinkTargets() {
   const known = new Set(state.articles.map((article) => article.id));
   for (const key of Object.keys(state.data.redirects ?? {})) known.add(key);
-  els.previewPane.innerHTML = renderMarkdown(els.bodyInput.value, known);
+  for (const item of state.data.calculators?.items ?? []) {
+    if (item?.id) known.add(`calc:${item.id}`);
+  }
+  for (const table of state.data.reference ?? []) {
+    if (table?.id) known.add(`ref:${table.id}`);
+  }
+  return known;
+}
+
+function renderPreview() {
+  if (!state) return;
+  const html = renderMarkdown(els.bodyInput.value, knownLinkTargets());
+  els.livePreviewPane.innerHTML = html;
+  els.previewPane.innerHTML = html;
 }
 
 function renderOutline() {
@@ -413,9 +456,13 @@ function switchTab(tab) {
   for (const button of document.querySelectorAll(".tab")) {
     button.classList.toggle("active", button.dataset.tab === tab);
   }
-  els.bodyInput.hidden = tab !== "write";
+  const write = tab === "write";
+  els.writePane.hidden = !write;
+  els.livePreviewPane.hidden = !write;
+  els.editorBody.classList.toggle("split", write);
   els.previewPane.hidden = tab !== "preview";
   els.outlinePane.hidden = tab !== "outline";
+  if (write) renderPreview();
   if (tab === "preview") renderPreview();
   if (tab === "outline") renderOutline();
 }
@@ -426,7 +473,7 @@ function markDirty() {
   els.saveState.textContent = "есть несохранённые правки";
   els.saveState.style.color = "var(--warn)";
   updateWordCount();
-  if (activeTab === "preview") {
+  if (activeTab === "preview" || activeTab === "write") {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 180);
   }
@@ -581,6 +628,714 @@ async function insertImage(file) {
   } finally {
     $("imageInput").value = "";
   }
+}
+
+
+function markdownEdit(before, after = before, placeholder = "текст") {
+  const textarea = els.bodyInput;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? start;
+  const selected = textarea.value.slice(start, end) || placeholder;
+  const insert = `${before}${selected}${after}`;
+  textarea.value = `${textarea.value.slice(0, start)}${insert}${textarea.value.slice(end)}`;
+  textarea.selectionStart = start + before.length;
+  textarea.selectionEnd = start + before.length + selected.length;
+  textarea.focus();
+  markDirty();
+}
+
+function prefixLines(prefix, placeholder = "пункт") {
+  const textarea = els.bodyInput;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? start;
+  const lineStart = textarea.value.lastIndexOf("\n", start - 1) + 1;
+  const nextBreak = textarea.value.indexOf("\n", end);
+  const lineEnd = nextBreak === -1 ? textarea.value.length : nextBreak;
+  const block = textarea.value.slice(lineStart, lineEnd) || placeholder;
+  const insert = block
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
+  textarea.value = `${textarea.value.slice(0, lineStart)}${insert}${textarea.value.slice(lineEnd)}`;
+  textarea.selectionStart = lineStart;
+  textarea.selectionEnd = lineStart + insert.length;
+  textarea.focus();
+  markDirty();
+}
+
+function applyFormat(kind) {
+  if (kind === "bold") markdownEdit("**", "**", "жирный текст");
+  else if (kind === "italic") markdownEdit("*", "*", "курсив");
+  else if (kind === "heading") prefixLines("## ", "Заголовок");
+  else if (kind === "list") prefixLines("- ", "пункт");
+  else if (kind === "quote") prefixLines("> ", "цитата");
+  else if (kind === "code") markdownEdit("`", "`", "код");
+}
+
+function insertAtCursor(text) {
+  const textarea = els.bodyInput;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? start;
+  textarea.value = `${textarea.value.slice(0, start)}${text}${textarea.value.slice(end)}`;
+  textarea.selectionStart = textarea.selectionEnd = start + text.length;
+  textarea.focus();
+  markDirty();
+}
+
+const LINK_KINDS = [
+  { key: "article", label: "Статья" },
+  { key: "calculator", label: "Калькулятор" },
+  { key: "reference", label: "Справочник" },
+  { key: "url", label: "Внешний адрес" },
+];
+
+function linkItems() {
+  if (!state) return [];
+  if (linkKind === "article") {
+    return state.articles.map((article) => ({
+      target: article.id,
+      title: article.title || article.id,
+      subtitle: article.id,
+    }));
+  }
+  if (linkKind === "calculator") {
+    return (state.data.calculators?.items ?? []).map((item) => ({
+      target: `calc:${item.id}`,
+      title: item.title || item.id,
+      subtitle: `calc:${item.id}`,
+    }));
+  }
+  if (linkKind === "reference") {
+    return (state.data.reference ?? []).map((table) => ({
+      target: `ref:${table.id}`,
+      title: table.data?.title || table.id,
+      subtitle: `ref:${table.id}`,
+    }));
+  }
+  return [];
+}
+
+function renderLinkKinds() {
+  els.linkKindTabs.innerHTML = "";
+  for (const kind of LINK_KINDS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = kind.label;
+    button.className = linkKind === kind.key ? "active" : "";
+    button.addEventListener("click", () => {
+      linkKind = kind.key;
+      linkSelection = null;
+      els.linkLabelInput.value = "";
+      els.linkError.hidden = true;
+      renderLinkKinds();
+      renderLinkResults();
+    });
+    els.linkKindTabs.append(button);
+  }
+}
+
+function renderLinkResults() {
+  const query = els.linkSearchInput.value.trim().toLowerCase();
+  els.linkResults.innerHTML = "";
+  els.linkUrlField.hidden = linkKind !== "url";
+  if (linkKind === "url") {
+    const hint = document.createElement("div");
+    hint.className = "link-result-empty";
+    hint.textContent = "Введите адрес https://… и подпись ссылки.";
+    els.linkResults.append(hint);
+    return;
+  }
+  const items = linkItems().filter((item) => {
+    if (!query) return true;
+    return `${item.title} ${item.subtitle}`.toLowerCase().includes(query);
+  });
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "link-result-empty";
+    empty.textContent = "Ничего не найдено.";
+    els.linkResults.append(empty);
+    return;
+  }
+  for (const item of items) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `link-result ${linkSelection?.target === item.target ? "active" : ""}`;
+    const title = document.createElement("strong");
+    title.textContent = item.title;
+    const subtitle = document.createElement("small");
+    subtitle.textContent = item.subtitle;
+    button.append(title, subtitle);
+    button.addEventListener("click", () => {
+      linkSelection = item;
+      els.linkLabelInput.value = item.title;
+      els.linkError.hidden = true;
+      renderLinkResults();
+    });
+    els.linkResults.append(button);
+  }
+}
+
+function openLinkModal() {
+  if (!state || !current) {
+    showToast("Сначала откройте статью", "error");
+    return;
+  }
+  linkKind = "article";
+  linkSelection = null;
+  els.linkSearchInput.value = "";
+  els.linkLabelInput.value = "";
+  els.linkUrlInput.value = "";
+  els.linkError.hidden = true;
+  renderLinkKinds();
+  renderLinkResults();
+  openModal("linkModal");
+  els.linkSearchInput.focus();
+}
+
+function insertLink() {
+  if (linkKind === "url") {
+    const url = els.linkUrlInput.value.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      els.linkError.textContent = "Адрес должен начинаться с http:// или https://";
+      els.linkError.hidden = false;
+      return;
+    }
+    const label = els.linkLabelInput.value.trim() || url;
+    insertAtCursor(`[${label}](${url})`);
+    closeModal("linkModal");
+    return;
+  }
+  if (!linkSelection) {
+    els.linkError.textContent = "Выберите элемент из списка";
+    els.linkError.hidden = false;
+    return;
+  }
+  const label = els.linkLabelInput.value.trim() || linkSelection.title;
+  insertAtCursor(`[[${linkSelection.target}|${label}]]`);
+  closeModal("linkModal");
+}
+
+
+function cloneTreeNode(node) {
+  return {
+    id: String(node.id ?? ""),
+    title: String(node.title ?? ""),
+    articles: Array.isArray(node.articles) ? [...node.articles] : [],
+    children: Array.isArray(node.children) ? node.children.map(cloneTreeNode) : [],
+  };
+}
+
+function cloneTree(tree) {
+  return {
+    schemaVersion: 1,
+    roots: Array.isArray(tree?.roots) ? tree.roots.map(cloneTreeNode) : [],
+  };
+}
+
+function walkTree(nodes, visit, parent = null, depth = 1) {
+  nodes.forEach((node, index) => {
+    visit(node, parent, index, depth);
+    walkTree(node.children ?? [], visit, node, depth + 1);
+  });
+}
+
+function findTreeSection(id, nodes = treeDraft?.roots ?? [], parent = null, depth = 1) {
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    if (node.id === id) return { node, parent, index, depth };
+    const found = findTreeSection(id, node.children ?? [], node, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+function treeSectionCount() {
+  let count = 0;
+  walkTree(treeDraft?.roots ?? [], () => {
+    count += 1;
+  });
+  return count;
+}
+
+function treeArticleIds(node) {
+  const ids = [...(node.articles ?? [])];
+  for (const child of node.children ?? []) ids.push(...treeArticleIds(child));
+  return ids;
+}
+
+function treePlacedIds() {
+  const placed = new Set();
+  walkTree(treeDraft?.roots ?? [], (node) => {
+    for (const id of node.articles ?? []) placed.add(id);
+  });
+  return placed;
+}
+
+function unplacedArticles() {
+  const placed = treePlacedIds();
+  return state.articles
+    .filter((article) => !placed.has(article.id))
+    .sort((a, b) => (a.title || a.id).localeCompare(b.title || b.id, "ru"));
+}
+
+function findArticlePlacement(articleId) {
+  let found = null;
+  walkTree(treeDraft?.roots ?? [], (node) => {
+    if (found) return;
+    const index = (node.articles ?? []).indexOf(articleId);
+    if (index !== -1) found = { node, index };
+  });
+  return found;
+}
+
+function removeArticleEverywhere(articleId) {
+  walkTree(treeDraft?.roots ?? [], (node) => {
+    node.articles = (node.articles ?? []).filter((id) => id !== articleId);
+  });
+}
+
+function isTreeDescendant(node, id) {
+  if (node.id === id) return true;
+  return (node.children ?? []).some((child) => isTreeDescendant(child, id));
+}
+
+function treeNewId(parentId) {
+  const ids = new Set();
+  walkTree(treeDraft?.roots ?? [], (node) => ids.add(node.id));
+  treeSequence += 1;
+  const suffix = `${Date.now().toString(36)}${treeSequence.toString(36)}`;
+  const stem = `${parentId ? `${parentId}/` : ""}section`;
+  let id = `${stem}-${suffix}`;
+  while (ids.has(id)) id += "x";
+  return id;
+}
+
+function treeDirtyState(dirty) {
+  treeDirty = dirty;
+  els.treeStatus.textContent = dirty ? "есть несохранённые правки" : "сохранено";
+  els.treeStatus.style.color = dirty ? "var(--warn)" : "";
+  $("treeSaveBtn").disabled = !dirty;
+  if (dirty) {
+    els.treeErrors.hidden = true;
+    els.treeErrors.textContent = "";
+  }
+}
+
+
+function addTreeSection(parentId = "") {
+  const found = parentId ? findTreeSection(parentId) : null;
+  if (parentId && !found) return;
+  if (found && found.depth >= 4) {
+    showToast("Вложенность ограничена четырьмя уровнями", "error");
+    return;
+  }
+  const title = prompt(parentId ? "Название подраздела:" : "Название раздела:", "");
+  if (!title?.trim()) return;
+  const section = {
+    id: treeNewId(parentId),
+    title: title.trim(),
+    articles: [],
+    children: [],
+  };
+  if (found) found.node.children.push(section);
+  else treeDraft.roots.push(section);
+  treeDirtyState(true);
+  renderTreeEditor();
+}
+
+function renameTreeSection(id) {
+  const found = findTreeSection(id);
+  if (!found) return;
+  const title = prompt("Название раздела:", found.node.title);
+  if (!title?.trim() || title.trim() === found.node.title) return;
+  found.node.title = title.trim();
+  treeDirtyState(true);
+  renderTreeEditor();
+}
+
+function moveTreeSectionOrder(id, offset) {
+  const found = findTreeSection(id);
+  if (!found) return;
+  const siblings = found.parent ? found.parent.children : treeDraft.roots;
+  const target = found.index + offset;
+  if (target < 0 || target >= siblings.length) return;
+  const [node] = siblings.splice(found.index, 1);
+  siblings.splice(target, 0, node);
+  treeDirtyState(true);
+  renderTreeEditor();
+}
+
+function deleteTreeSection(id) {
+  const found = findTreeSection(id);
+  if (!found) return;
+  const total = treeArticleIds(found.node).length;
+  const message = found.node.children.length
+    ? `Удалить раздел «${found.node.title}»? Подразделы поднимутся на уровень выше, ${total} статей останутся без раздела.`
+    : `Удалить раздел «${found.node.title}»? ${total ? `${total} статей останутся без раздела.` : ""}`;
+  if (!confirm(message.trim())) return;
+  const siblings = found.parent ? found.parent.children : treeDraft.roots;
+  siblings.splice(found.index, 1);
+  const children = found.node.children ?? [];
+  if (children.length) siblings.splice(found.index, 0, ...children);
+  treeDirtyState(true);
+  renderTreeEditor();
+}
+
+function moveSectionInto(id, targetId) {
+  if (!id || !targetId || id === targetId) return false;
+  const source = findTreeSection(id);
+  const target = findTreeSection(targetId);
+  if (!source || !target) return false;
+  if (isTreeDescendant(source.node, targetId)) {
+    showToast("Нельзя вложить раздел в самого себя", "error");
+    return false;
+  }
+  if (target.depth >= 4) {
+    showToast("Вложенность ограничена четырьмя уровнями", "error");
+    return false;
+  }
+  const siblings = source.parent ? source.parent.children : treeDraft.roots;
+  siblings.splice(source.index, 1);
+  target.node.children.push(source.node);
+  treeDirtyState(true);
+  renderTreeEditor();
+  return true;
+}
+
+function moveSectionToRoots(id) {
+  const source = findTreeSection(id);
+  if (!source) return false;
+  const siblings = source.parent ? source.parent.children : treeDraft.roots;
+  if (!source.parent) {
+    siblings.splice(source.index, 1);
+    siblings.push(source.node);
+  } else {
+    siblings.splice(source.index, 1);
+    treeDraft.roots.push(source.node);
+  }
+  treeDirtyState(true);
+  renderTreeEditor();
+  return true;
+}
+
+function moveArticleToSection(articleId, sectionId, beforeArticleId = null) {
+  const target = findTreeSection(sectionId);
+  if (!target) return false;
+  removeArticleEverywhere(articleId);
+  const articles = target.node.articles ?? (target.node.articles = []);
+  let index = beforeArticleId ? articles.indexOf(beforeArticleId) : -1;
+  if (index === -1) index = articles.length;
+  articles.splice(index, 0, articleId);
+  treeDirtyState(true);
+  renderTreeEditor();
+  return true;
+}
+
+function unplaceArticle(articleId) {
+  if (!findArticlePlacement(articleId)) return;
+  removeArticleEverywhere(articleId);
+  treeDirtyState(true);
+  renderTreeEditor();
+}
+
+
+function treeArticleElement(articleId, sectionId, showRemove = true) {
+  const article = state.articles.find((item) => item.id === articleId);
+  const wrapper = document.createElement("span");
+  wrapper.className = "tree-article-drop";
+  wrapper.dataset.sectionId = sectionId;
+  wrapper.dataset.articleId = articleId;
+
+  const chip = document.createElement("span");
+  chip.className = "tree-article";
+  chip.draggable = true;
+  chip.dataset.articleId = articleId;
+  chip.title = article ? `${article.title} · ${articleId}` : `Нет статьи: ${articleId}`;
+  const label = document.createElement("span");
+  label.className = "tree-article-label";
+  label.textContent = article?.title || articleId;
+  chip.append(label);
+  if (!article) {
+    const missing = document.createElement("small");
+    missing.textContent = "нет статьи";
+    chip.append(missing);
+  }
+
+  chip.addEventListener("dragstart", (event) => {
+    dragState = { type: "article", id: articleId };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", articleId);
+    chip.classList.add("dragging");
+  });
+  chip.addEventListener("dragend", () => {
+    dragState = null;
+    chip.classList.remove("dragging");
+  });
+
+  if (showRemove) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "tree-article-remove";
+    remove.textContent = "×";
+    remove.title = "Убрать из раздела";
+    remove.draggable = false;
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      unplaceArticle(articleId);
+    });
+    chip.append(remove);
+  }
+
+  wrapper.addEventListener("dragover", (event) => {
+    if (!sectionId || dragState?.type !== "article") return;
+    event.preventDefault();
+    event.stopPropagation();
+    wrapper.classList.add("over");
+  });
+  wrapper.addEventListener("dragleave", () => wrapper.classList.remove("over"));
+  wrapper.addEventListener("drop", (event) => {
+    if (!sectionId || dragState?.type !== "article") return;
+    event.preventDefault();
+    event.stopPropagation();
+    wrapper.classList.remove("over");
+    moveArticleToSection(dragState.id, wrapper.dataset.sectionId, wrapper.dataset.articleId);
+    dragState = null;
+  });
+
+  wrapper.append(chip);
+  return wrapper;
+}
+
+function treeSectionElement(node, depth) {
+  const section = document.createElement("div");
+  section.className = "tree-section";
+  section.dataset.sectionId = node.id;
+  if ((node.articles ?? []).length || (node.children ?? []).length) {
+    section.classList.add("has-content");
+  }
+
+  const head = document.createElement("div");
+  head.className = "tree-section-head";
+
+  const handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "tree-handle";
+  handle.textContent = "⋮⋮";
+  handle.title = "Перетащите раздел";
+  handle.draggable = true;
+  handle.addEventListener("dragstart", (event) => {
+    dragState = { type: "section", id: node.id };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", node.id);
+  });
+  handle.addEventListener("dragend", () => {
+    dragState = null;
+  });
+
+  const title = document.createElement("span");
+  title.className = "tree-section-title";
+  title.textContent = node.title;
+  title.title = node.title;
+
+  const count = document.createElement("span");
+  count.className = "tree-count";
+  count.textContent = String(treeArticleIds(node).length);
+  count.title = "Статей в разделе с подразделами";
+
+  const actions = document.createElement("div");
+  actions.className = "tree-section-actions";
+  const action = (text, titleText, handler, extraClass = "") => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `tree-icon ${extraClass}`.trim();
+    button.textContent = text;
+    button.title = titleText;
+    button.addEventListener("click", handler);
+    actions.append(button);
+  };
+  action("↑", "Выше", () => moveTreeSectionOrder(node.id, -1));
+  action("↓", "Ниже", () => moveTreeSectionOrder(node.id, 1));
+  if (depth < 4) action("+", "Добавить подраздел", () => addTreeSection(node.id));
+  action("✎", "Переименовать", () => renameTreeSection(node.id));
+  action("✕", "Удалить раздел", () => deleteTreeSection(node.id), "danger");
+
+  head.append(handle, title, count, actions);
+
+  const body = document.createElement("div");
+  body.className = "tree-section-body";
+  const articles = document.createElement("div");
+  articles.className = "tree-articles";
+  if ((node.articles ?? []).length) {
+    for (const articleId of node.articles) {
+      articles.append(treeArticleElement(articleId, node.id));
+    }
+  } else {
+    const hint = document.createElement("span");
+    hint.className = "tree-drop-hint";
+    hint.textContent = "Перетащите статьи сюда";
+    articles.append(hint);
+  }
+  body.append(articles);
+
+  if ((node.children ?? []).length) {
+    const children = document.createElement("div");
+    children.className = "tree-section-children";
+    for (const child of node.children) children.append(treeSectionElement(child, depth + 1));
+    body.append(children);
+  }
+
+  section.append(head, body);
+
+  section.addEventListener("dragover", (event) => {
+    if (event.target.closest(".tree-section") !== section) return;
+    if (dragState?.type === "article") {
+      event.preventDefault();
+      event.stopPropagation();
+      section.classList.add("drop-target");
+      return;
+    }
+    if (dragState?.type === "section") {
+      const source = findTreeSection(dragState.id);
+      if (!source || source.node.id === node.id) return;
+      if (isTreeDescendant(source.node, node.id) || depth >= 4) return;
+      event.preventDefault();
+      event.stopPropagation();
+      section.classList.add("drop-target");
+    }
+  });
+  section.addEventListener("dragleave", (event) => {
+    if (!section.contains(event.relatedTarget)) section.classList.remove("drop-target");
+  });
+  section.addEventListener("drop", (event) => {
+    if (event.target.closest(".tree-section") !== section) return;
+    event.preventDefault();
+    event.stopPropagation();
+    section.classList.remove("drop-target");
+    if (dragState?.type === "article") {
+      moveArticleToSection(dragState.id, node.id);
+    } else if (dragState?.type === "section") {
+      moveSectionInto(dragState.id, node.id);
+    }
+    dragState = null;
+  });
+
+  return section;
+}
+
+function renderTreeEditor() {
+  if (!treeDraft) return;
+  const placed = treePlacedIds();
+  els.treeSummary.textContent = `${treeSectionCount()} разделов · размещено ${placed.size} из ${state.articles.length} статей`;
+  els.treeRoots.innerHTML = "";
+
+  if (!treeDraft.roots.length) {
+    const empty = document.createElement("div");
+    empty.className = "tree-empty";
+    empty.textContent = "В дереве пока нет разделов. Добавьте первый или перетащите статьи после создания.";
+    els.treeRoots.append(empty);
+  } else {
+    for (const node of treeDraft.roots) els.treeRoots.append(treeSectionElement(node, 1));
+  }
+
+  const unplaced = unplacedArticles();
+  els.treeUnplacedCount.textContent = unplaced.length ? `${unplaced.length}` : "нет";
+  els.treeUnplaced.innerHTML = "";
+  if (!unplaced.length) {
+    const empty = document.createElement("div");
+    empty.className = "tree-empty";
+    empty.textContent = "Все статьи размещены.";
+    els.treeUnplaced.append(empty);
+  } else {
+    for (const article of unplaced) {
+      const element = treeArticleElement(article.id, "", false);
+      element.classList.add("unplaced-article");
+      els.treeUnplaced.append(element);
+    }
+  }
+
+  els.treeSaveBtn.disabled = !treeDirty;
+  if (!treeDirty) {
+    els.treeStatus.textContent = "сохранено";
+    els.treeStatus.style.color = "";
+  }
+}
+
+function openTreeModal() {
+  if (!state) return;
+  if (!confirmDiscard()) return;
+  if (treeDirty && !confirm("Несохранённые правки дерева будут потеряны. Продолжить?")) return;
+  treeDraft = cloneTree(state.tree);
+  treeDirtyState(false);
+  els.treeErrors.hidden = true;
+  els.treeErrors.textContent = "";
+  renderTreeEditor();
+  openModal("treeModal");
+}
+
+function reloadTreeDraft() {
+  if (!state) return;
+  if (treeDirty && !confirm("Отменить изменения дерева?")) return;
+  treeDraft = cloneTree(state.tree);
+  treeDirtyState(false);
+  els.treeErrors.hidden = true;
+  els.treeErrors.textContent = "";
+  renderTreeEditor();
+}
+
+async function saveTree() {
+  if (!treeDraft) return;
+  els.treeSaveBtn.disabled = true;
+  els.treeStatus.textContent = "сохраняю…";
+  els.treeStatus.style.color = "";
+  try {
+    const result = await api("/api/tree", {
+      method: "PUT",
+      body: JSON.stringify({ tree: treeDraft }),
+    });
+    treeDraft = cloneTree(result.tree);
+    treeDirtyState(false);
+    await refreshState();
+    closeModal("treeModal");
+    showToast("Дерево сохранено", "ok");
+  } catch (error) {
+    const errors = error.payload?.details?.errors ?? error.payload?.errors ?? [error.message];
+    els.treeErrors.textContent = errors.join("\n");
+    els.treeErrors.hidden = false;
+    els.treeStatus.textContent = "не сохранено";
+    els.treeStatus.style.color = "var(--danger)";
+    els.treeSaveBtn.disabled = false;
+    showToast(error.message, "error");
+  }
+}
+
+function bindTreeDropZones() {
+  els.treeRootDrop.addEventListener("dragover", (event) => {
+    if (dragState?.type !== "section") return;
+    event.preventDefault();
+    els.treeRootDrop.classList.add("over");
+  });
+  els.treeRootDrop.addEventListener("dragleave", () => els.treeRootDrop.classList.remove("over"));
+  els.treeRootDrop.addEventListener("drop", (event) => {
+    if (dragState?.type !== "section") return;
+    event.preventDefault();
+    els.treeRootDrop.classList.remove("over");
+    moveSectionToRoots(dragState.id);
+    dragState = null;
+  });
+
+  els.treeUnplaced.addEventListener("dragover", (event) => {
+    if (dragState?.type !== "article") return;
+    event.preventDefault();
+    els.treeUnplaced.classList.add("over");
+  });
+  els.treeUnplaced.addEventListener("dragleave", () => els.treeUnplaced.classList.remove("over"));
+  els.treeUnplaced.addEventListener("drop", (event) => {
+    if (dragState?.type !== "article") return;
+    event.preventDefault();
+    els.treeUnplaced.classList.remove("over");
+    unplaceArticle(dragState.id);
+    dragState = null;
+  });
 }
 
 
@@ -834,6 +1589,25 @@ function bindEvents() {
   $("dataSaveBtn").addEventListener("click", saveData);
   $("dataReloadBtn").addEventListener("click", () => dataSelection && selectData(dataSelection.key));
   $("validationBadge").addEventListener("click", renderValidation);
+  $("treeBtn").addEventListener("click", openTreeModal);
+  $("treeAddRootBtn").addEventListener("click", () => addTreeSection());
+  $("treeSaveBtn").addEventListener("click", saveTree);
+  $("treeReloadBtn").addEventListener("click", reloadTreeDraft);
+  bindTreeDropZones();
+
+  $("insertLinkBtn").addEventListener("click", openLinkModal);
+  $("linkInsertBtn").addEventListener("click", insertLink);
+  els.linkSearchInput.addEventListener("input", renderLinkResults);
+  els.linkSearchInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const first = els.linkResults.querySelector(".link-result");
+    if (first) first.click();
+    else insertLink();
+  });
+  for (const button of document.querySelectorAll("[data-format]")) {
+    button.addEventListener("click", () => applyFormat(button.dataset.format));
+  }
 
   $("insertImageBtn").addEventListener("click", () => $("imageInput").click());
   $("imageInput").addEventListener("change", (event) => {
@@ -850,11 +1624,11 @@ function bindEvents() {
   }
 
   for (const button of document.querySelectorAll("[data-close]")) {
-    button.addEventListener("click", () => closeModal(button.dataset.close));
+    button.addEventListener("click", () => requestCloseModal(button.dataset.close));
   }
   for (const backdrop of document.querySelectorAll(".modal-backdrop")) {
     backdrop.addEventListener("mousedown", (event) => {
-      if (event.target === backdrop) backdrop.hidden = true;
+      if (event.target === backdrop) requestCloseModal(backdrop.id);
     });
   }
 
@@ -862,9 +1636,18 @@ function bindEvents() {
     const modalOpen = [...document.querySelectorAll(".modal-backdrop")].some((node) => !node.hidden);
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      if (modalOpen && !els.dataModal.hidden) saveData();
+      if (!els.treeModal.hidden) saveTree();
+      else if (modalOpen && !els.dataModal.hidden) saveData();
       else if (!modalOpen && current) saveArticle();
       return;
+    }
+    if ((event.ctrlKey || event.metaKey) && document.activeElement === els.bodyInput) {
+      const key = event.key.toLowerCase();
+      if (key === "b" || key === "i") {
+        event.preventDefault();
+        applyFormat(key === "b" ? "bold" : "italic");
+        return;
+      }
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
@@ -878,7 +1661,11 @@ function bindEvents() {
       return;
     }
     if (event.key === "Escape") {
-      for (const node of document.querySelectorAll(".modal-backdrop")) node.hidden = true;
+      for (const node of document.querySelectorAll(".modal-backdrop")) {
+        if (node.hidden) continue;
+        if (node.id === "treeModal") requestCloseModal(node.id);
+        else node.hidden = true;
+      }
     }
   });
 
@@ -893,7 +1680,7 @@ function bindEvents() {
   });
 
   window.addEventListener("beforeunload", (event) => {
-    if (!isDirty()) return;
+    if (!isDirty() && !treeDirty) return;
     event.preventDefault();
     event.returnValue = "";
   });

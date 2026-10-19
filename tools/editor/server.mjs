@@ -173,6 +173,10 @@ export function createHandler(store, publicDir = PUBLIC_DIR) {
             : store.saveRecipe(id, body.data);
         return sendJson(res, 200, { validation });
       }
+      if (req.method === "PUT" && pathname === "/api/tree") {
+        const body = await readBody(req);
+        return sendJson(res, 200, store.saveTree(body.tree ?? body));
+      }
       if (req.method === "PUT" && pathname === "/api/data/calculators") {
         const body = await readBody(req);
         return sendJson(res, 200, { validation: store.saveCalculators(body.data) });

@@ -24,6 +24,7 @@
         </div>
         <div class="top-actions">
           <button class="btn primary" id="newArticleBtn">+ Статья</button>
+          <button class="btn" id="treeBtn">Дерево</button>
           <button class="btn" id="dataBtn">Данные</button>
           <button class="btn" id="checkBtn">Проверить</button>
           <button class="btn" id="buildBtn">Собрать</button>
@@ -142,12 +143,25 @@
               <button class="tab" data-tab="preview" role="tab">Предпросмотр</button>
               <button class="tab" data-tab="outline" role="tab">Структура</button>
               <span class="tab-spacer"></span>
+              <button class="tab-action" id="insertLinkBtn" type="button">Вставить ссылку</button>
               <button class="tab-action" id="insertImageBtn" type="button">Вставить картинку</button>
               <input id="imageInput" type="file" accept="image/webp,image/png,image/jpeg" hidden />
             </div>
 
-            <div class="editor-body">
-              <textarea id="bodyInput" spellcheck="true" placeholder="Текст статьи в Markdown…"></textarea>
+            <div class="editor-body split" id="editorBody">
+              <div class="write-pane" id="writePane">
+                <div class="md-toolbar" role="toolbar" aria-label="Форматирование Markdown">
+                  <button type="button" data-format="bold" title="Жирный (Ctrl B)">Ж</button>
+                  <button type="button" data-format="italic" title="Курсив (Ctrl I)">К</button>
+                  <button type="button" data-format="heading" title="Заголовок">H2</button>
+                  <button type="button" data-format="list" title="Список">•</button>
+                  <button type="button" data-format="quote" title="Цитата">❝</button>
+                  <button type="button" data-format="code" title="Код">&lt;/&gt;</button>
+                  <span class="md-toolbar-hint">Markdown · живой предпросмотр</span>
+                </div>
+                <textarea id="bodyInput" spellcheck="true" placeholder="Текст статьи в Markdown…"></textarea>
+              </div>
+              <div class="preview markdown live-preview" id="livePreviewPane"></div>
               <div class="preview markdown" id="previewPane" hidden></div>
               <div class="outline" id="outlinePane" hidden></div>
             </div>
@@ -185,6 +199,73 @@
               <button class="btn primary" id="dataSaveBtn">Сохранить JSON</button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="treeModal" hidden>
+      <div class="modal modal-wide tree-modal" role="dialog" aria-modal="true" aria-labelledby="treeTitle">
+        <header class="modal-head">
+          <div>
+            <h2 id="treeTitle">Дерево навигации</h2>
+            <p class="muted">Перетаскивайте статьи в разделы, а разделы — друг в друга. Порядок меняется стрелками.</p>
+          </div>
+          <button class="icon-button" data-close="treeModal" aria-label="Закрыть">✕</button>
+        </header>
+        <div class="tree-toolbar">
+          <button class="btn" id="treeAddRootBtn">+ Раздел</button>
+          <span id="treeSummary" class="muted"></span>
+        </div>
+        <div class="tree-layout">
+          <div class="tree-canvas">
+            <div id="treeRoots" class="tree-roots"></div>
+            <div id="treeRootDrop" class="tree-drop">Отпустите раздел здесь, чтобы вернуть его на верхний уровень</div>
+          </div>
+          <aside class="tree-unplaced">
+            <div class="tree-unplaced-head">
+              <strong>Без раздела</strong>
+              <span id="treeUnplacedCount" class="muted">0</span>
+            </div>
+            <div id="treeUnplaced" class="tree-unplaced-list"></div>
+            <p class="hint">Перетащите статью в раздел или удалите её из раздела кнопкой ×. Неразмещённые статьи не теряются.</p>
+          </aside>
+        </div>
+        <div id="treeErrors" class="tree-errors" hidden></div>
+        <div class="modal-actions">
+          <span id="treeStatus" class="muted tree-status"></span>
+          <button class="btn" id="treeReloadBtn">Отменить правки</button>
+          <button class="btn primary" id="treeSaveBtn">Сохранить дерево</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="linkModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="linkTitle">
+        <header class="modal-head">
+          <div>
+            <h2 id="linkTitle">Вставить ссылку</h2>
+            <p class="muted">Статья, калькулятор, справочная таблица или внешний адрес.</p>
+          </div>
+          <button class="icon-button" data-close="linkModal" aria-label="Закрыть">✕</button>
+        </header>
+        <div class="link-kind-tabs" id="linkKindTabs"></div>
+        <label class="field link-search">
+          <span>Поиск</span>
+          <input id="linkSearchInput" type="search" placeholder="Название или id…" autocomplete="off" />
+        </label>
+        <div class="link-results" id="linkResults"></div>
+        <label class="field link-field">
+          <span>Подпись ссылки</span>
+          <input id="linkLabelInput" placeholder="Текст, который увидит читатель" />
+        </label>
+        <label class="field link-field" id="linkUrlField" hidden>
+          <span>Адрес</span>
+          <input id="linkUrlInput" type="url" placeholder="https://…" />
+        </label>
+        <div id="linkError" class="link-error" hidden></div>
+        <div class="modal-actions">
+          <button class="btn" data-close="linkModal">Отмена</button>
+          <button class="btn primary" id="linkInsertBtn">Вставить</button>
         </div>
       </div>
     </div>

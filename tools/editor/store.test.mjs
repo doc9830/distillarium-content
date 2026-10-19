@@ -176,6 +176,62 @@ test("ContentStore: состояние, статьи, редиректы и да
   assert.throws(() => store.saveMedia({ name: "evil.png", base64: "" }), /нет данных/);
 });
 
+test("ContentStore: дерево сохраняется, проверяется и следует за статьёй", () => {
+  const root = makeRepo();
+  const store = new ContentStore(root);
+  assert.deepEqual(store.readTree().roots, []);
+
+  const saved = store.saveTree({
+    schemaVersion: 1,
+    roots: [
+      {
+        id: "knowledge",
+        title: "Знания",
+        articles: ["start"],
+        children: [
+          {
+            id: "knowledge/processes",
+            title: "Процессы",
+            articles: ["processes/run"],
+            children: [],
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(saved.validation.errors.length, 0);
+  assert.equal(store.readTree().roots[0].title, "Знания");
+  assert.equal(store.readTree().roots[0].children[0].title, "Процессы");
+
+  assert.throws(
+    () =>
+      store.saveTree({
+        schemaVersion: 1,
+        roots: [{ id: "bad", title: "Плохо", articles: ["missing"], children: [] }],
+      }),
+    /дерево не прошло проверку/,
+  );
+  assert.equal(store.readTree().roots[0].title, "Знания");
+
+  assert.throws(
+    () =>
+      store.saveTree({
+        schemaVersion: 1,
+        roots: [
+          { id: "one", title: "Один", articles: ["start"], children: [] },
+          { id: "two", title: "Два", articles: ["start"], children: [] },
+        ],
+      }),
+    /дерево не прошло проверку/,
+  );
+
+  store.renameArticle("start", "start-new");
+  assert.deepEqual(store.readTree().roots[0].articles, ["start-new"]);
+
+  store.deleteArticle("start-new");
+  assert.deepEqual(store.readTree().roots[0].articles, []);
+});
+
 test("nextContentVersion: текущий месяц, новый месяц и мусор", () => {
   const now = new Date();
   const period = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}`;

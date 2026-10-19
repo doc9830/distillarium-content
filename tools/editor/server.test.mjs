@@ -180,6 +180,54 @@ test("JSON-данные, медиа и проверка контента", async
 });
 
 
+test("GET/PUT дерева навигации", async () => {
+  const before = await call("/api/state");
+  assert.deepEqual(before.payload.tree.roots, []);
+  const articleId = before.payload.articles[0].id;
+
+  const saved = await call("/api/tree", {
+    method: "PUT",
+    body: JSON.stringify({
+      tree: {
+        schemaVersion: 1,
+        roots: [
+          {
+            id: "knowledge",
+            title: "Знания",
+            articles: [],
+            children: [
+              {
+                id: "knowledge/run",
+                title: "Запуск",
+                articles: [articleId],
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.payload.validation.errors, []);
+  assert.equal(saved.payload.tree.roots[0].children[0].articles[0], articleId);
+
+  const state = await call("/api/state");
+  assert.equal(state.payload.tree.roots[0].title, "Знания");
+
+  const invalid = await call("/api/tree", {
+    method: "PUT",
+    body: JSON.stringify({
+      tree: {
+        schemaVersion: 1,
+        roots: [{ id: "broken", title: "Битая", articles: ["missing"], children: [] }],
+      },
+    }),
+  });
+  assert.equal(invalid.status, 422);
+  assert.match(invalid.payload.error, /дерево/);
+});
+
 test("статика и защита локального API", async () => {
   const page = await call("/");
   assert.equal(page.status, 200);
