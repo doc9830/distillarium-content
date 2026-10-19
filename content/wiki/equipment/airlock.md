@@ -1,12 +1,12 @@
 ---
 id: equipment/airlock
-title: "Гидрозатвор"
+title: Гидрозатвор
 category: oborudovanie
-source: moonshinewiki
-source_slug: gidrozatvor
 created: 2026-09-05
 updated: 2026-09-05
 sources: []
+source: moonshinewiki
+source_slug: gidrozatvor
 ---
 **Гидрозатвор** — устройство, которое позволяет углекислому газу выходить из ёмкости во время брожения, но препятствует попаданию внутрь воздуха и посторонних микроорганизмов.
 
