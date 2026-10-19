@@ -1,7 +1,11 @@
 # distillarium-content
 
+**GitHub:** <https://github.com/doc9830/distillarium-content> (приватный) ·
+[релизы](https://github.com/doc9830/distillarium-content/releases)
+
 Контент приложения «Дистиллярий»: вики, справочники, рецепты, медиа.
 Отдельный репозиторий — правка опечатки не требует новой сборки APK.
+Приложение: <https://github.com/doc9830/distillarium-app>.
 
 **Лицензия:** source available, см. [`LICENSE`](LICENSE). Лицензия на контент
 пока не выбрана — открытый вопрос проекта.
@@ -139,4 +143,5 @@ node tools/validate-content.mjs <путь>     # любой распакован
 `.github/workflows/content.yml` на каждый пуш и pull request собирает пакет,
 проверяет архив и падает при любой ошибке валидации. На тег `content-*`
 публикует `content-pack.zip` и `manifest.json` в релиз, обновляет
-`content-latest`.
+`content-latest`. Проверено на GitHub: `main` и тег `content-2026.10.4` зелёные;
+релиз содержит `content-pack.zip` (sha256 `32ae04a5…`) и `manifest.json`.
