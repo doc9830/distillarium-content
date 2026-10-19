@@ -191,7 +191,7 @@ npm run test:editor
 `.github/workflows/content.yml` на каждый пуш и pull request собирает пакет,
 проверяет архив и падает при любой ошибке валидации. На тег `content-*`
 публикует `content-pack.zip` и `manifest.json` в релиз, обновляет
-`content-latest`. Проверено на GitHub: `main` и тег `content-2026.10.5` зелёные;
+`content-latest`. Проверено на GitHub: `main` и тег `content-2026.10.8` зелёные;
 релиз содержит `content-pack.zip` (sha256 `f0d4fba4…`) и `manifest.json`.
 
 Репозиторий публичный, поэтому приложение скачивает эти файлы по прямым
