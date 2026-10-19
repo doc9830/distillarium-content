@@ -44,6 +44,15 @@
           ]
         },
         {
+          "id": "section-mvf4pke91/section-mvf8av9s1",
+          "title": "Оборудование",
+          "articles": [
+            "articles/areometr-saharomer",
+            "articles/areometr-spirtomer"
+          ],
+          "children": []
+        },
+        {
           "id": "section-mvf4pke91/section-mvf4rpsf9",
           "title": "Рецепты",
           "articles": [],
@@ -103,7 +112,10 @@
     {
       "id": "section-mvf4pybv4",
       "title": "Оборудование",
-      "articles": [],
+      "articles": [
+        "articles/areometr-saharomer",
+        "articles/areometr-spirtomer"
+      ],
       "children": []
     }
   ]
