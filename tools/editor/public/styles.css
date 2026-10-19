@@ -1143,6 +1143,14 @@ textarea:focus {
 /* Конструктор дерева */
 .tree-modal {
   width: min(1140px, 100%);
+  height: min(88vh, 900px);
+}
+
+.tree-modal .modal-head,
+.tree-modal .tree-toolbar,
+.tree-modal .tree-errors,
+.tree-modal .modal-actions {
+  flex: none;
 }
 
 .tree-toolbar {
@@ -1160,14 +1168,16 @@ textarea:focus {
 
 .tree-layout {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr) 300px;
-  min-height: 420px;
-  max-height: 62vh;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
   overflow: hidden;
 }
 
 .tree-canvas {
   min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 14px 16px 24px;
   background: var(--bg);

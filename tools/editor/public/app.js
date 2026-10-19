@@ -8,7 +8,7 @@ const els = {
   gitBadge: $("gitBadge"),
   validationBadge: $("validationBadge"),
   searchInput: $("searchInput"),
-  categoryFilter: $("categoryFilter"),
+  sectionFilter: $("sectionFilter"),
   tagFilter: $("tagFilter"),
   articleList: $("articleList"),
   articleCount: $("articleCount"),
@@ -20,8 +20,7 @@ const els = {
   articlePathLabel: $("articlePathLabel"),
   titleInput: $("titleInput"),
   shortInput: $("shortInput"),
-  categoryInput: $("categoryInput"),
-  categoryOptions: $("categoryOptions"),
+  sectionLabel: $("sectionLabel"),
   levelInput: $("levelInput"),
   techInput: $("techInput"),
   equipmentInput: $("equipmentInput"),
@@ -200,17 +199,54 @@ function renderBadges() {
   els.mediaCount.textContent = `медиа: ${state.media.length}`;
 }
 
-function renderFilters() {
-  const category = els.categoryFilter.value;
-  const tag = els.tagFilter.value;
-  els.categoryFilter.innerHTML = '<option value="">Все категории</option>';
-  for (const item of state.categories) {
-    const option = document.createElement("option");
-    option.value = item;
-    option.textContent = item;
-    els.categoryFilter.append(option);
+/** id статьи → раздел дерева, в котором она лежит. */
+function treeSectionIndex(tree = state?.tree) {
+  const index = new Map();
+  function walk(nodes, trail) {
+    for (const node of nodes ?? []) {
+      const path = [...trail, node.title || "Без названия"];
+      for (const articleId of node.articles ?? []) {
+        if (!index.has(articleId)) {
+          index.set(articleId, {
+            id: node.id,
+            title: node.title || "Без названия",
+            path: path.join(" / "),
+          });
+        }
+      }
+      walk(node.children ?? [], path);
+    }
   }
-  els.categoryFilter.value = category;
+  walk(tree?.roots ?? [], []);
+  return index;
+}
+
+function renderFilters() {
+  const section = els.sectionFilter.value;
+  const tag = els.tagFilter.value;
+  els.sectionFilter.innerHTML = '<option value="">Все разделы</option>';
+  const seen = new Set();
+  function addSections(nodes, trail) {
+    for (const node of nodes ?? []) {
+      const path = [...trail, node.title || "Без названия"];
+      if (!seen.has(node.id)) {
+        seen.add(node.id);
+        const option = document.createElement("option");
+        option.value = node.id;
+        option.textContent = path.join(" / ");
+        els.sectionFilter.append(option);
+      }
+      addSections(node.children ?? [], path);
+    }
+  }
+  addSections(state.tree?.roots ?? [], []);
+  const unplaced = document.createElement("option");
+  unplaced.value = "__unplaced";
+  unplaced.textContent = "Без раздела";
+  els.sectionFilter.append(unplaced);
+  els.sectionFilter.value = [...els.sectionFilter.options].some((o) => o.value === section)
+    ? section
+    : "";
 
   const tags = [...new Set(state.articles.flatMap((article) => article.tags))].sort();
   els.tagFilter.innerHTML = '<option value="">Все теги</option>';
@@ -221,22 +257,19 @@ function renderFilters() {
     els.tagFilter.append(option);
   }
   els.tagFilter.value = tag;
-
-  els.categoryOptions.innerHTML = "";
-  for (const item of state.categories) {
-    const option = document.createElement("option");
-    option.value = item;
-    els.categoryOptions.append(option);
-  }
 }
 
 function visibleArticles() {
   if (!state) return [];
   const query = els.searchInput.value.trim().toLowerCase();
-  const category = els.categoryFilter.value;
+  const section = els.sectionFilter.value;
   const tag = els.tagFilter.value;
+  const placements = treeSectionIndex(state.tree);
   return state.articles.filter((article) => {
-    if (category && article.category !== category) return false;
+    if (section === "__unplaced" && placements.has(article.id)) return false;
+    if (section && section !== "__unplaced" && placements.get(article.id)?.id !== section) {
+      return false;
+    }
     if (tag && !article.tags.includes(tag)) return false;
     if (!query) return true;
     return [article.id, article.title, article.short, article.category, ...article.tags]
@@ -249,6 +282,7 @@ function visibleArticles() {
 function renderArticleList() {
   if (!state) return;
   const articles = visibleArticles();
+  const placements = treeSectionIndex(state.tree);
   els.articleList.innerHTML = "";
   els.articleCount.textContent = `${articles.length} / ${state.articles.length}`;
   if (!articles.length) {
@@ -262,11 +296,11 @@ function renderArticleList() {
 
   const groups = new Map();
   for (const article of articles) {
-    const key = article.category || "без категории";
+    const key = placements.get(article.id)?.path || "Без раздела";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(article);
   }
-  for (const [group, items] of [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+  for (const [group, items] of [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], "ru"))) {
     const label = document.createElement("div");
     label.className = "group-label";
     label.textContent = `${group} · ${items.length}`;
@@ -324,7 +358,7 @@ function fillForm(article) {
   els.articlePathLabel.textContent = `wiki/${article.id}.md`;
   els.titleInput.value = article.title ?? "";
   els.shortInput.value = data.short ?? "";
-  els.categoryInput.value = data.category ?? "";
+  els.sectionLabel.value = treeSectionIndex(state.tree).get(article.id)?.path || "Без раздела";
   els.levelInput.value = data.level ? String(data.level) : "";
   els.techInput.value = joinList(data.tech);
   els.equipmentInput.value = joinList(data.equipment);
@@ -370,7 +404,6 @@ function collectArticle() {
   const data = { ...(current?.data ?? {}) };
   const fields = {
     short: els.shortInput.value.trim(),
-    category: els.categoryInput.value.trim(),
     level: els.levelInput.value,
     tech: splitList(els.techInput.value),
     equipment: splitList(els.equipmentInput.value),
@@ -921,6 +954,84 @@ function treeDirtyState(dirty) {
   }
 }
 
+
+const CATEGORY_TITLES = {
+  ingredienty: "Сырье",
+  oborudovanie: "Оборудование",
+  pivo: "Пивоварение",
+  "problemy-i-resheniya": "Проблемы",
+  retsepty: "Рецепты",
+  samogon: "Самогоноварение",
+  spravochnik: "Справочник",
+  tehnologii: "Технологии",
+  vino: "Виноделие",
+};
+
+function categorySectionTitle(category) {
+  const key = String(category ?? "").trim().toLowerCase();
+  if (!key) return "Без категории";
+  if (CATEGORY_TITLES[key]) return CATEGORY_TITLES[key];
+  return key
+    .replace(/[-_]+/g, " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+/**
+ * Переносит старые категории в редактируемое дерево: недостающие разделы
+ * создаются, статьи раскладываются по разделам с тем же названием.
+ */
+function seedTreeFromCategories() {
+  if (!treeDraft) return;
+  const unplaced = unplacedArticles();
+  if (!unplaced.length) {
+    showToast("Все статьи уже размещены в дереве", "ok");
+    return;
+  }
+  if (!confirm(
+    `Разложить ${unplaced.length} статей по категориям? ` +
+      "Недостающие разделы будут добавлены в дерево, существующие разделы " +
+      "с тем же названием будут использованы.",
+  )) {
+    return;
+  }
+
+  const byTitle = new Map();
+  walkTree(treeDraft.roots, (node) => {
+    const key = String(node.title ?? "").trim().toLowerCase();
+    if (key && !byTitle.has(key)) byTitle.set(key, node);
+  });
+
+  let created = 0;
+  let placed = 0;
+  for (const article of unplaced) {
+    const title = categorySectionTitle(article.category);
+    const key = title.toLowerCase();
+    let section = byTitle.get(key);
+    if (!section) {
+      section = {
+        id: treeNewId(""),
+        title,
+        articles: [],
+        children: [],
+      };
+      treeDraft.roots.push(section);
+      byTitle.set(key, section);
+      created += 1;
+    }
+    section.articles = section.articles ?? [];
+    if (!section.articles.includes(article.id)) {
+      section.articles.push(article.id);
+      placed += 1;
+    }
+  }
+
+  treeDirtyState(true);
+  renderTreeEditor();
+  showToast(
+    `Разложено статей: ${placed}; добавлено разделов: ${created}. Проверьте структуру и сохраните.`,
+    "ok",
+  );
+}
 
 function addTreeSection(parentId = "") {
   const found = parentId ? findTreeSection(parentId) : null;
@@ -1550,7 +1661,6 @@ function bindEvents() {
   for (const input of [
     els.titleInput,
     els.shortInput,
-    els.categoryInput,
     els.levelInput,
     els.techInput,
     els.equipmentInput,
@@ -1567,7 +1677,7 @@ function bindEvents() {
   }
 
   els.searchInput.addEventListener("input", renderArticleList);
-  els.categoryFilter.addEventListener("change", renderArticleList);
+  els.sectionFilter.addEventListener("change", renderArticleList);
   els.tagFilter.addEventListener("change", renderArticleList);
   els.refreshBtn.addEventListener("click", async () => {
     if (!confirmDiscard()) return;
@@ -1591,6 +1701,7 @@ function bindEvents() {
   $("validationBadge").addEventListener("click", renderValidation);
   $("treeBtn").addEventListener("click", openTreeModal);
   $("treeAddRootBtn").addEventListener("click", () => addTreeSection());
+  $("treeSeedBtn").addEventListener("click", seedTreeFromCategories);
   $("treeSaveBtn").addEventListener("click", saveTree);
   $("treeReloadBtn").addEventListener("click", reloadTreeDraft);
   bindTreeDropZones();

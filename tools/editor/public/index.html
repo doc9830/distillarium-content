@@ -39,7 +39,7 @@
             <kbd>Ctrl K</kbd>
           </div>
           <div class="filter-row">
-            <select id="categoryFilter" aria-label="Категория"></select>
+            <select id="sectionFilter" aria-label="Раздел"></select>
             <select id="tagFilter" aria-label="Тег"></select>
           </div>
           <div class="list-head">
@@ -87,9 +87,8 @@
                 <input id="shortInput" maxlength="300" placeholder="Одно-два предложения для списка и поиска" />
               </label>
               <label class="field">
-                <span>Категория</span>
-                <input id="categoryInput" list="categoryOptions" placeholder="processes" />
-                <datalist id="categoryOptions"></datalist>
+                <span>Раздел</span>
+                <input id="sectionLabel" readonly placeholder="Задаётся в дереве" />
               </label>
               <label class="field">
                 <span>Уровень</span>
@@ -214,6 +213,7 @@
         </header>
         <div class="tree-toolbar">
           <button class="btn" id="treeAddRootBtn">+ Раздел</button>
+          <button class="btn" id="treeSeedBtn" title="Создать разделы из категорий статей">Разложить по категориям</button>
           <span id="treeSummary" class="muted"></span>
         </div>
         <div class="tree-layout">
