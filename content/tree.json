@@ -26,7 +26,9 @@
             {
               "id": "section-mvf4pke91/section-mvf4ql5t7/section-mvf4si65a",
               "title": "Прямоточный аппарат",
-              "articles": [],
+              "articles": [
+                "articles/pervaya-peregonka-na-pryamotochnom-apparate"
+              ],
               "children": []
             },
             {
@@ -69,7 +71,8 @@
             "articles/peregonnyy-kub",
             "articles/gazovaya-plita",
             "articles/indukcionnaya-plita",
-            "articles/ten"
+            "articles/ten",
+            "articles/holodilnik-dlya-pryamotoka"
           ],
           "children": []
         }
@@ -186,7 +189,8 @@
         "articles/peregonnyy-kub",
         "articles/gazovaya-plita",
         "articles/indukcionnaya-plita",
-        "articles/ten"
+        "articles/ten",
+        "articles/holodilnik-dlya-pryamotoka"
       ],
       "children": []
     }
