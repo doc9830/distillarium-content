@@ -187,11 +187,11 @@ npm run test:editor
 `.github/workflows/content.yml` на каждый пуш и pull request собирает пакет,
 проверяет архив и падает при любой ошибке валидации. На тег `content-*`
 публикует `content-pack.zip` и `manifest.json` в релиз, обновляет
-`content-latest`. Проверено на GitHub: `main` и тег `content-2026.10.4` зелёные;
-релиз содержит `content-pack.zip` (sha256 `32ae04a5…`) и `manifest.json`.
+`content-latest`. Проверено на GitHub: `main` и тег `content-2026.10.5` зелёные;
+релиз содержит `content-pack.zip` (sha256 `f0d4fba4…`) и `manifest.json`.
 
 Репозиторий публичный, поэтому приложение скачивает эти файлы по прямым
 ссылкам без токена. Проверка 19.10.2026: `content-latest` отдаёт
 `manifest.json` и `content-pack.zip` без авторизации, sha256 архива
-`32ae04a51c643838bb12a9eec5654ed4348dc7156d1c7f0162f02bf04f6b9bab`
+`f0d4fba46e8fb9b5f37365c7bf6bf0eb8f19bec1d384dfea0e671ab01f7657ca`
 совпадает с `packSha256` в манифесте.
