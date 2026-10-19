@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -149,10 +149,14 @@ test("ContentStore: состояние, статьи, редиректы и да
     title: "Новая проблема",
     short: "Проблема",
     tags: ["новичок", "новичок"],
+    calc: ["abv"],
     body: "Ссылка на [[processes/run]].",
   });
   assert.equal(created.article.id, "problems/new");
   assert.deepEqual(created.article.tags, ["новичок"]);
+  assert.equal(created.article.calc, undefined);
+  assert.equal(created.article.data.calc, undefined);
+  assert.doesNotMatch(readFileSync(store.articleFile("problems/new"), "utf8"), /^calc:/m);
   assert.deepEqual(store.state().tags, ["новичок"]);
   assert.equal(created.validation.errors.length, 0);
   assert.throws(

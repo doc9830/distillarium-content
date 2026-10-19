@@ -89,43 +89,58 @@
             </div>
 
             <div class="meta-grid">
-              <label class="field field-wide">
+              <label class="field meta-short">
                 <span>Короткое описание</span>
-                <input id="shortInput" maxlength="300" placeholder="Одно-два предложения для списка и поиска" />
+                <input id="shortInput" maxlength="300" placeholder="О чём статья — для списка и поиска" />
               </label>
-              <div class="field field-wide">
+              <div class="field meta-sections">
                 <span>Разделы дерева</span>
-                <div id="sectionChips" class="chip-editor"></div>
-                <select id="sectionAdd" aria-label="Добавить статью в раздел"></select>
+                <div class="token-control">
+                  <div id="sectionChips" class="chip-editor"></div>
+                  <select id="sectionAdd" class="token-select" aria-label="Добавить статью в раздел"></select>
+                </div>
               </div>
-              <div class="field field-wide">
+              <div class="field meta-tags">
                 <span>Теги</span>
-                <div id="tagChips" class="chip-editor"></div>
-                <input id="tagsInput" list="tagOptions" placeholder="Начните вводить тег и нажмите Enter" autocomplete="off" />
-                <datalist id="tagOptions"></datalist>
+                <div class="token-control">
+                  <div id="tagChips" class="chip-editor"></div>
+                  <input
+                    id="tagsInput"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded="false"
+                    aria-controls="tagSuggestions"
+                    aria-haspopup="listbox"
+                    placeholder="Добавить тег…"
+                    autocomplete="off"
+                  />
+                  <button
+                    type="button"
+                    class="token-toggle"
+                    id="tagDropdownBtn"
+                    aria-label="Показать все теги"
+                  >▾</button>
+                </div>
+                <div id="tagSuggestions" class="tag-suggestions" role="listbox" hidden></div>
               </div>
-              <label class="field">
-                <span>Калькуляторы</span>
-                <input id="calcInput" placeholder="dilution, heads-tails" />
-              </label>
-              <label class="field">
-                <span>Источник статьи</span>
+              <label class="field meta-source">
+                <span>Источник</span>
                 <input id="sourceInput" placeholder="manual" list="sourceOptions" />
                 <datalist id="sourceOptions">
                   <option value="manual"></option>
                   <option value="moonshinewiki"></option>
                 </datalist>
               </label>
-              <label class="field">
+              <label class="field meta-created">
                 <span>Создана</span>
                 <input id="createdInput" type="date" />
               </label>
-              <label class="field">
+              <label class="field meta-updated">
                 <span>Обновлена</span>
                 <input id="updatedInput" type="date" />
               </label>
-              <label class="field field-wide">
-                <span>Источники (по одному URL на строку)</span>
+              <label class="field meta-sources">
+                <span>Источники <small>по одному URL на строку</small></span>
                 <textarea id="sourcesInput" rows="2" placeholder="https://…"></textarea>
               </label>
             </div>

@@ -24,7 +24,8 @@ const els = {
   sectionAdd: $("sectionAdd"),
   tagChips: $("tagChips"),
   tagsInput: $("tagsInput"),
-  calcInput: $("calcInput"),
+  tagDropdownBtn: $("tagDropdownBtn"),
+  tagSuggestions: $("tagSuggestions"),
   sourceInput: $("sourceInput"),
   createdInput: $("createdInput"),
   updatedInput: $("updatedInput"),
@@ -94,6 +95,8 @@ let idRequest = 0;
 let articleSections = [];
 let articleTags = [];
 let sectionsDirty = false;
+let tagActiveIndex = -1;
+let tagSuggestionItems = [];
 
 const DEFAULT_ARTICLE_BODY = "## Коротко\n\n## Что делать\n\n1. \n\n## Почему так\n\n";
 
@@ -319,6 +322,134 @@ function renderFilters() {
 
 function sameTag(left, right) {
   return String(left).toLocaleLowerCase("ru") === String(right).toLocaleLowerCase("ru");
+}
+
+function canonicalTag(value) {
+  const tag = normalizeTag(value);
+  if (!tag) return "";
+  return tagCatalog().find((item) => sameTag(item, tag)) ?? tag;
+}
+
+/** Варианты для ручного списка: похожие теги и, при необходимости, новый. */
+function tagOptions() {
+  const query = normalizeTag(els.tagsInput.value);
+  const key = query.toLocaleLowerCase("ru");
+  const known = tagCatalog();
+  const catalog = known.filter(
+    (tag) => !articleTags.some((item) => sameTag(item, tag)),
+  );
+  const matches = catalog
+    .filter((tag) => !key || tag.toLocaleLowerCase("ru").includes(key))
+    .sort((left, right) => {
+      const leftKey = left.toLocaleLowerCase("ru");
+      const rightKey = right.toLocaleLowerCase("ru");
+      const leftStarts = leftKey.startsWith(key) ? 0 : 1;
+      const rightStarts = rightKey.startsWith(key) ? 0 : 1;
+      return leftStarts - rightStarts || left.localeCompare(right, "ru");
+    })
+    .slice(0, 50)
+    .map((tag) => ({ value: tag, create: false }));
+  const exists = known.some((tag) => sameTag(tag, query));
+  if (query && !exists) matches.push({ value: query, create: true });
+  return matches;
+}
+
+function setTagActive(index) {
+  tagActiveIndex = index;
+  const buttons = els.tagSuggestions.querySelectorAll(".tag-suggestion");
+  buttons.forEach((button, buttonIndex) => {
+    const active = buttonIndex === tagActiveIndex;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+    if (active) {
+      els.tagsInput.setAttribute("aria-activedescendant", button.id);
+      button.scrollIntoView({ block: "nearest" });
+    }
+  });
+  if (tagActiveIndex < 0) els.tagsInput.removeAttribute("aria-activedescendant");
+}
+
+function renderTagSuggestions() {
+  tagSuggestionItems = tagOptions();
+  els.tagSuggestions.innerHTML = "";
+  if (!tagSuggestionItems.length) {
+    const empty = document.createElement("div");
+    empty.className = "tag-empty";
+    empty.textContent = els.tagsInput.value.trim()
+      ? "Такой тег уже добавлен"
+      : "Тегов пока нет — введите новый";
+    els.tagSuggestions.append(empty);
+    if (tagActiveIndex >= 0) setTagActive(-1);
+    return;
+  }
+
+  tagSuggestionItems.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = `tag-option-${index}`;
+    button.className = `tag-suggestion${item.create ? " create" : ""}`;
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", String(index === tagActiveIndex));
+    const label = document.createElement("span");
+    label.className = "tag-suggestion-label";
+    label.textContent = item.create ? `Создать «${item.value}»` : item.value;
+    button.append(label);
+    if (item.create) {
+      const hint = document.createElement("small");
+      hint.textContent = "новый";
+      button.append(hint);
+    }
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => chooseTagSuggestion(index));
+    els.tagSuggestions.append(button);
+  });
+
+  if (tagActiveIndex >= tagSuggestionItems.length) setTagActive(tagSuggestionItems.length - 1);
+  else setTagActive(tagActiveIndex);
+}
+
+function openTagSuggestions() {
+  if (!current) return;
+  renderTagSuggestions();
+  els.tagSuggestions.hidden = false;
+  els.tagsInput.setAttribute("aria-expanded", "true");
+  els.tagDropdownBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeTagSuggestions() {
+  els.tagSuggestions.hidden = true;
+  els.tagsInput.setAttribute("aria-expanded", "false");
+  els.tagDropdownBtn.setAttribute("aria-expanded", "false");
+  els.tagsInput.removeAttribute("aria-activedescendant");
+  tagActiveIndex = -1;
+}
+
+function chooseTagSuggestion(index) {
+  const item = tagSuggestionItems[index];
+  if (!item) return false;
+  addTagValues(item.value);
+  els.tagsInput.value = "";
+  closeTagSuggestions();
+  els.tagsInput.focus();
+  return true;
+}
+
+function moveTagSuggestion(delta) {
+  if (els.tagSuggestions.hidden) openTagSuggestions();
+  const count = tagSuggestionItems.length;
+  if (!count) return;
+  const next = tagActiveIndex < 0
+    ? (delta > 0 ? 0 : count - 1)
+    : (tagActiveIndex + delta + count) % count;
+  setTagActive(next);
+}
+
+function commitTagInput() {
+  const pending = canonicalTag(els.tagsInput.value);
+  if (!pending) return false;
+  const changed = addTagValues(pending);
+  els.tagsInput.value = "";
+  return changed;
 }
 
 function visibleArticles() {
@@ -731,14 +862,7 @@ function renderTagEditor() {
     }
   }
 
-  const datalist = $("tagOptions");
-  datalist.innerHTML = "";
-  for (const tag of tagCatalog()) {
-    if (articleTags.some((item) => sameTag(item, tag))) continue;
-    const option = document.createElement("option");
-    option.value = tag;
-    datalist.append(option);
-  }
+  if (!els.tagSuggestions.hidden) renderTagSuggestions();
 }
 
 function fillForm(article) {
@@ -756,7 +880,7 @@ function fillForm(article) {
   renderSectionEditor();
   renderTagEditor();
   els.tagsInput.value = "";
-  els.calcInput.value = joinList(data.calc);
+  closeTagSuggestions();
   els.sourceInput.value = data.source ?? "";
   els.createdInput.value = data.created ?? "";
   els.updatedInput.value = data.updated ?? today();
@@ -798,6 +922,7 @@ function clearEditor() {
   idRequest += 1;
   setArticleId("");
   els.tagsInput.value = "";
+  closeTagSuggestions();
   els.editorPane.hidden = true;
   els.emptyState.hidden = false;
   renderArticleList();
@@ -808,9 +933,9 @@ function collectArticle() {
   delete data.level;
   delete data.tech;
   delete data.equipment;
+  delete data.calc;
   const fields = {
     short: els.shortInput.value.trim(),
-    calc: splitList(els.calcInput.value),
     source: els.sourceInput.value.trim(),
     created: els.createdInput.value,
     updated: els.updatedInput.value,
@@ -990,11 +1115,8 @@ async function requestArticleId(title) {
 
 async function saveArticle() {
   if (!current) return;
-  const pendingTag = els.tagsInput.value.trim();
-  if (pendingTag) {
-    addTagValues(pendingTag);
-    els.tagsInput.value = "";
-  }
+  if (els.tagsInput.value.trim()) commitTagInput();
+  closeTagSuggestions();
   const payload = collectArticle();
   if (!payload.title) {
     showToast("Заголовок не может быть пустым", "error");
@@ -2199,7 +2321,6 @@ function bindEvents() {
   for (const input of [
     els.titleInput,
     els.shortInput,
-    els.calcInput,
     els.sourceInput,
     els.createdInput,
     els.updatedInput,
@@ -2228,24 +2349,68 @@ function bindEvents() {
     markDirty();
   });
 
-  const commitTagInput = () => {
-    if (!els.tagsInput.value.trim()) return;
-    addTagValues(els.tagsInput.value);
-    els.tagsInput.value = "";
-  };
+  els.tagsInput.addEventListener("focus", openTagSuggestions);
+  els.tagsInput.addEventListener("input", () => {
+    tagActiveIndex = -1;
+    markDirty();
+    openTagSuggestions();
+  });
   els.tagsInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === ",") {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveTagSuggestion(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (tagActiveIndex >= 0) chooseTagSuggestion(tagActiveIndex);
+      else if (!commitTagInput()) closeTagSuggestions();
+      else openTagSuggestions();
+      return;
+    }
+    if (event.key === "Escape") {
+      if (!els.tagSuggestions.hidden) {
+        event.preventDefault();
+        closeTagSuggestions();
+      }
+      return;
+    }
+    if (event.key === "," || event.key === ";") {
       event.preventDefault();
       commitTagInput();
+      openTagSuggestions();
+      return;
+    }
+    if (event.key === "Tab") {
+      closeTagSuggestions();
       return;
     }
     if (event.key === "Backspace" && !els.tagsInput.value && articleTags.length) {
       articleTags.pop();
       renderTagEditor();
       markDirty();
+      openTagSuggestions();
     }
   });
-  els.tagsInput.addEventListener("change", commitTagInput);
+  els.tagsInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (document.activeElement?.closest(".meta-tags")) return;
+      commitTagInput();
+      closeTagSuggestions();
+    }, 0);
+  });
+  els.tagDropdownBtn.addEventListener("click", () => {
+    if (!els.tagSuggestions.hidden) {
+      closeTagSuggestions();
+      return;
+    }
+    els.tagsInput.focus();
+    openTagSuggestions();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (event.target instanceof Element && event.target.closest(".meta-tags")) return;
+    closeTagSuggestions();
+  });
 
   els.articleList.addEventListener("dragover", (event) => {
     if (dragState?.type !== "article") return;

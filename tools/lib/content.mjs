@@ -22,7 +22,6 @@ export const FRONTMATTER_ORDER = [
   "created",
   "updated",
   "sources",
-  "calc",
   "source",
   "source_slug",
 ];
@@ -342,7 +341,7 @@ function loadArticles(contentDir, errors, warnings) {
     const short = deriveShort(data, parsed.body);
     if (!short) errors.push(`${where}: пустой обязательный short (не выводится из текста)`);
 
-    for (const field of ["tech", "equipment", "tags", "sources", "calc"]) {
+    for (const field of ["tech", "equipment", "tags", "sources"]) {
       checkStringArray(data[field], field, where, errors);
     }
     if (

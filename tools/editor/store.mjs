@@ -228,7 +228,6 @@ function summarize(article) {
     tags: Array.isArray(data.tags) ? data.tags : [],
     tech: Array.isArray(data.tech) ? data.tech : [],
     equipment: Array.isArray(data.equipment) ? data.equipment : [],
-    calc: Array.isArray(data.calc) ? data.calc : [],
     source: asString(data.source),
     created: asString(data.created),
     updated: asString(data.updated),
@@ -267,7 +266,7 @@ function normalizeArticleData(input, id, { creating }) {
   if (level === undefined) delete normalized.level;
   else normalized.level = level;
 
-  for (const field of ["tech", "equipment", "tags", "calc"]) {
+  for (const field of ["tech", "equipment", "tags"]) {
     let items = asStringArray(input?.[field] ?? data[field] ?? [], field);
     if (field === "tags") items = uniqueTags(items);
     if (items.length) normalized[field] = items;
