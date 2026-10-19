@@ -1,0 +1,19 @@
+{
+  "id": "wine-to-distillate",
+  "title": "Перегонка вина",
+  "short": "Что делать с вином, которое не вышло: получить спирт-сырец и разделить его на фракции.",
+  "type": "distillate",
+  "volume": 20,
+  "ingredients": [
+    { "name": "Вино", "amount": "20 л" },
+    { "name": "Вода", "amount": "для разбавления сырца" }
+  ],
+  "steps": [
+    { "title": "Измерить крепость и объём вина, записать значения", "afterDays": 0, "wikiId": "equipment/measurements" },
+    { "title": "Залить вино в куб не выше безопасного уровня", "afterDays": 0, "wikiId": "equipment/still-pot" },
+    { "title": "Перегнать в спирт-сырец, контролируя крепость в струе", "afterDays": 0, "wikiId": "processes/separate/first-run" },
+    { "title": "Разбавить спирт-сырец водой перед второй перегонкой", "afterDays": 0, "wikiId": "processes/finish/dilution" },
+    { "title": "Перегнать дробно и разделить головы, тело и хвосты", "afterDays": 1, "wikiId": "processes/separate/heads-hearts-tails" },
+    { "title": "Сохранить хвосты для следующей партии", "afterDays": 0, "wikiId": "processes/separate/fractional" }
+  ]
+}
