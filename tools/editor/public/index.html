@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Дистиллярий — редактор контента</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚗️</text></svg>" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">Д</span>
+          <span class="brand-text">
+            <strong>Дистиллярий</strong>
+            <small>редактор контента</small>
+          </span>
+        </div>
+        <div class="top-status">
+          <span class="badge" id="versionBadge">версия …</span>
+          <span class="badge" id="gitBadge">git …</span>
+          <button class="badge badge-button" id="validationBadge" title="Показать ошибки">проверка …</button>
+        </div>
+        <div class="top-actions">
+          <button class="btn primary" id="newArticleBtn">+ Статья</button>
+          <button class="btn" id="dataBtn">Данные</button>
+          <button class="btn" id="checkBtn">Проверить</button>
+          <button class="btn" id="buildBtn">Собрать</button>
+          <button class="btn accent" id="publishBtn">Опубликовать</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar">
+          <div class="search-row">
+            <input id="searchInput" type="search" placeholder="Поиск по id, заголовку, тегу…" autocomplete="off" />
+            <kbd>Ctrl K</kbd>
+          </div>
+          <div class="filter-row">
+            <select id="categoryFilter" aria-label="Категория"></select>
+            <select id="tagFilter" aria-label="Тег"></select>
+          </div>
+          <div class="list-head">
+            <span>Статьи</span>
+            <span id="articleCount" class="muted">0</span>
+          </div>
+          <div class="article-list" id="articleList"></div>
+          <div class="sidebar-foot">
+            <span id="mediaCount" class="muted">медиа: 0</span>
+            <button class="link-button" id="refreshBtn">Обновить</button>
+          </div>
+        </aside>
+
+        <main class="main">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-mark">⚗️</div>
+            <h1>Редактор контента</h1>
+            <p>Выберите статью слева или создайте новую. Контент хранится в Markdown и JSON, публикация идёт через Git.</p>
+            <div class="empty-actions">
+              <button class="btn primary" id="emptyNewBtn">Создать статью</button>
+              <button class="btn" id="emptyDataBtn">Открыть данные</button>
+            </div>
+          </div>
+
+          <section class="editor" id="editorPane" hidden>
+            <div class="editor-head">
+              <div class="title-wrap">
+                <div class="id-line">
+                  <code id="articleIdLabel"></code>
+                  <span class="dot">·</span>
+                  <span id="articlePathLabel" class="muted"></span>
+                </div>
+                <input id="titleInput" class="title-input" placeholder="Заголовок статьи" />
+              </div>
+              <div class="head-actions">
+                <button class="btn primary" id="saveBtn">Сохранить <kbd>Ctrl S</kbd></button>
+                <button class="btn" id="renameBtn">Переименовать</button>
+                <button class="btn danger" id="deleteBtn">Удалить</button>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <label class="field field-wide">
+                <span>Короткое описание</span>
+                <input id="shortInput" maxlength="300" placeholder="Одно-два предложения для списка и поиска" />
+              </label>
+              <label class="field">
+                <span>Категория</span>
+                <input id="categoryInput" list="categoryOptions" placeholder="processes" />
+                <datalist id="categoryOptions"></datalist>
+              </label>
+              <label class="field">
+                <span>Уровень</span>
+                <select id="levelInput">
+                  <option value="">не задан</option>
+                  <option value="1">1 — старт</option>
+                  <option value="2">2 — процесс</option>
+                  <option value="3">3 — деталь</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Технологии</span>
+                <input id="techInput" placeholder="wine, beer, distill" />
+              </label>
+              <label class="field">
+                <span>Оборудование</span>
+                <input id="equipmentInput" placeholder="any, pot, column" />
+              </label>
+              <label class="field">
+                <span>Теги</span>
+                <input id="tagsInput" placeholder="новичку, проблема" />
+              </label>
+              <label class="field">
+                <span>Калькуляторы</span>
+                <input id="calcInput" placeholder="dilution, heads-tails" />
+              </label>
+              <label class="field">
+                <span>Источник статьи</span>
+                <input id="sourceInput" placeholder="manual" list="sourceOptions" />
+                <datalist id="sourceOptions">
+                  <option value="manual"></option>
+                  <option value="moonshinewiki"></option>
+                </datalist>
+              </label>
+              <label class="field">
+                <span>Создана</span>
+                <input id="createdInput" type="date" />
+              </label>
+              <label class="field">
+                <span>Обновлена</span>
+                <input id="updatedInput" type="date" />
+              </label>
+              <label class="field field-wide">
+                <span>Источники (по одному URL на строку)</span>
+                <textarea id="sourcesInput" rows="2" placeholder="https://…"></textarea>
+              </label>
+            </div>
+
+            <div class="editor-tabs" role="tablist">
+              <button class="tab active" data-tab="write" role="tab">Текст</button>
+              <button class="tab" data-tab="preview" role="tab">Предпросмотр</button>
+              <button class="tab" data-tab="outline" role="tab">Структура</button>
+              <span class="tab-spacer"></span>
+              <button class="tab-action" id="insertImageBtn" type="button">Вставить картинку</button>
+              <input id="imageInput" type="file" accept="image/webp,image/png,image/jpeg" hidden />
+            </div>
+
+            <div class="editor-body">
+              <textarea id="bodyInput" spellcheck="true" placeholder="Текст статьи в Markdown…"></textarea>
+              <div class="preview markdown" id="previewPane" hidden></div>
+              <div class="outline" id="outlinePane" hidden></div>
+            </div>
+            <div class="editor-foot">
+              <span id="wordCount" class="muted">0 слов</span>
+              <span id="saveState" class="muted">сохранено</span>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+
+    <div class="modal-backdrop" id="dataModal" hidden>
+      <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="dataTitle">
+        <header class="modal-head">
+          <div>
+            <h2 id="dataTitle">Данные контента</h2>
+            <p class="muted">Справочники, рецепты, калькуляторы, редиректы и версия пакета.</p>
+          </div>
+          <button class="icon-button" data-close="dataModal" aria-label="Закрыть">✕</button>
+        </header>
+        <div class="data-layout">
+          <nav class="data-nav" id="dataNav"></nav>
+          <div class="data-edit">
+            <div class="data-edit-head">
+              <code id="dataFileLabel">—</code>
+              <span id="dataStatus" class="muted"></span>
+            </div>
+            <textarea id="dataJson" spellcheck="false"></textarea>
+            <div class="modal-actions">
+              <button class="btn" id="dataReloadBtn">Отменить правки</button>
+              <button class="btn primary" id="dataSaveBtn">Сохранить JSON</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="publishModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="publishTitle">
+        <header class="modal-head">
+          <div>
+            <h2 id="publishTitle">Публикация</h2>
+            <p class="muted">Проверка → сборка → коммит → push. Для релиза создаётся тег, который запускает GitHub Actions.</p>
+          </div>
+          <button class="icon-button" data-close="publishModal" aria-label="Закрыть">✕</button>
+        </header>
+        <div id="publishInfo" class="publish-info"></div>
+        <label class="field">
+          <span>Сообщение коммита</span>
+          <input id="commitMessage" />
+        </label>
+        <label class="check-row">
+          <input id="releaseCheck" type="checkbox" />
+          <span>Выпустить новую версию пакета (тег <code>content-*</code>)</span>
+        </label>
+        <div id="releaseFields" class="release-fields" hidden>
+          <label class="field">
+            <span>Версия</span>
+            <input id="releaseVersion" />
+          </label>
+          <p class="hint">Изменится <code>content/version.json</code> и <code>package.json</code>. Дата релиза — сегодня.</p>
+        </div>
+        <pre class="console" id="publishLog" hidden></pre>
+        <div class="modal-actions">
+          <button class="btn" data-close="publishModal">Закрыть</button>
+          <button class="btn accent" id="publishConfirmBtn">Опубликовать</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="outputModal" hidden>
+      <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="outputTitle">
+        <header class="modal-head">
+          <div><h2 id="outputTitle">Результат</h2><p class="muted" id="outputSubtitle"></p></div>
+          <button class="icon-button" data-close="outputModal" aria-label="Закрыть">✕</button>
+        </header>
+        <pre class="console console-tall" id="outputText"></pre>
+        <div class="modal-actions">
+          <button class="btn" data-close="outputModal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
+

@@ -11,6 +11,8 @@
   "scripts": {
     "build": "node tools/build-content.mjs",
     "validate": "node tools/validate-content.mjs",
-    "check": "npm run build && npm run validate"
+    "check": "npm run build && npm run validate",
+    "editor": "node tools/editor/server.mjs",
+    "test:editor": "node --test tools/editor/store.test.mjs tools/editor/server.test.mjs"
   }
 }
