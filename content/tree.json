@@ -2,127 +2,108 @@
   "schemaVersion": 1,
   "roots": [
     {
-      "id": "section-mvf2zwbr1",
+      "id": "section-mvf4pke91",
       "title": "Самогоноварение",
       "articles": [],
       "children": [
         {
-          "id": "section-mvf2zwbr1/section-mvf30fyr5",
+          "id": "section-mvf4pke91/section-mvf4q5bd5",
           "title": "Сырье",
-          "articles": [
-            "raw/sugar-glucose"
-          ],
+          "articles": [],
           "children": []
         },
         {
-          "id": "section-mvf2zwbr1/section-mvf30kwk6",
+          "id": "section-mvf4pke91/section-mvf4q9ze6",
           "title": "Дрожжи",
-          "articles": [
-            "raw/yeast",
-            "raw/distiller-yeast"
-          ],
+          "articles": [],
           "children": []
         },
         {
-          "id": "section-mvf2zwbr1/section-mvf30rm77",
+          "id": "section-mvf4pke91/section-mvf4ql5t7",
           "title": "Инструкции",
-          "articles": [
-            "processes/finish/dilution"
-          ],
+          "articles": [],
           "children": [
             {
-              "id": "section-mvf2zwbr1/section-mvf30rm77/section-mvf30y4u8",
+              "id": "section-mvf4pke91/section-mvf4ql5t7/section-mvf4si65a",
               "title": "Прямоточный аппарат",
-              "articles": [
-                "processes/separate/first-run",
-                "processes/separate/second-run-pot"
-              ],
+              "articles": [],
               "children": []
             },
             {
-              "id": "section-mvf2zwbr1/section-mvf30rm77/section-mvf315zi9",
+              "id": "section-mvf4pke91/section-mvf4ql5t7/section-mvf4sobdb",
+              "title": "Колонна",
+              "articles": [],
+              "children": []
+            },
+            {
+              "id": "section-mvf4pke91/section-mvf4ql5t7/section-mvf4sv62c",
               "title": "Колонна с дефлегматором",
-              "articles": [
-                "processes/separate/fractional",
-                "processes/separate/heads-hearts-tails",
-                "processes/separate/second-run-column"
-              ],
-              "children": []
-            },
-            {
-              "id": "section-mvf2zwbr1/section-mvf30rm77/section-mvf31gfha",
-              "title": "Колонна с отбором по жидкости",
               "articles": [],
               "children": []
             }
           ]
+        },
+        {
+          "id": "section-mvf4pke91/section-mvf4rpsf9",
+          "title": "Рецепты",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4pke91/section-mvf4qr7o8",
+          "title": "Проблемы и решения",
+          "articles": [],
+          "children": []
         }
       ]
     },
     {
-      "id": "section-mvf300lb2",
+      "id": "section-mvf4pox32",
       "title": "Виноделие",
-      "articles": [
-        "processes/finish/fining",
-        "processes/ferment/primary",
-        "processes/prepare/grape",
-        "processes/separate/racking"
-      ],
-      "children": []
+      "articles": [],
+      "children": [
+        {
+          "id": "section-mvf4pox32/section-mvf551yld",
+          "title": "Сырье",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4pox32/section-mvf556ppe",
+          "title": "Дрожжи",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4pox32/section-mvf55bpff",
+          "title": "Инструкции",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4pox32/section-mvf55hhlg",
+          "title": "Рецепты",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4pox32/section-mvf55n83h",
+          "title": "Проблемы и решения",
+          "articles": [],
+          "children": []
+        }
+      ]
     },
     {
-      "id": "section-mvf3055t3",
+      "id": "section-mvf4ptpn3",
       "title": "Пивоварение",
-      "articles": [
-        "processes/beer/simple-brew"
-      ],
+      "articles": [],
       "children": []
     },
     {
-      "id": "section-mvf309sh4",
+      "id": "section-mvf4pybv4",
       "title": "Оборудование",
-      "articles": [
-        "equipment/measurements",
-        "equipment/airlock",
-        "equipment/dephlegmator",
-        "equipment/still-pot",
-        "equipment/parrot",
-        "equipment/condenser"
-      ],
-      "children": []
-    },
-    {
-      "id": "section-mvf3u8t51",
-      "title": "Рецепты",
-      "articles": [
-        "recipes/wheat-sour-starter",
-        "recipes/sugar-wash-spirit-yeast",
-        "recipes/sugar-wash-turbo",
-        "recipes/sugar-wash-classic",
-        "recipes/wine-to-distillate",
-        "recipes/apple-wine-sweet",
-        "recipes/cider-25"
-      ],
-      "children": []
-    },
-    {
-      "id": "section-mvf3u8t52",
-      "title": "Проблемы",
-      "articles": [
-        "problems/stuck-ferment",
-        "problems/no-bubbles",
-        "problems/off-flavour",
-        "problems/low-abv",
-        "problems/high-acidity"
-      ],
-      "children": []
-    },
-    {
-      "id": "section-mvf3u8t54",
-      "title": "Справочник",
-      "articles": [
-        "reference/hydrometer-temp"
-      ],
+      "articles": [],
       "children": []
     }
   ]

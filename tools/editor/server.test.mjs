@@ -149,6 +149,150 @@ test("CRUD статьи, переименование с редиректом и
   assert.equal(again.status, 404);
 });
 
+test("POST /api/articles без id генерирует id из заголовка", async () => {
+  const suggested = await call(`/api/article-id?title=${encodeURIComponent("Ёмкость для брожения")}`);
+  assert.equal(suggested.status, 200);
+  assert.equal(suggested.payload.id, "articles/emkost-dlya-brozheniya");
+
+  const originalRedirects = (await call("/api/state")).payload.data.redirects;
+  const reserved = await call("/api/data/redirects", {
+    method: "PUT",
+    body: JSON.stringify({
+      data: { ...originalRedirects, "articles/avtomaticheskiy-id": "processes/start" },
+    }),
+  });
+  assert.equal(reserved.status, 200);
+  assert.deepEqual(reserved.payload.validation.errors, []);
+
+  const reservedSuggestion = await call(
+    `/api/article-id?title=${encodeURIComponent("Автоматический id")}`,
+  );
+  assert.equal(reservedSuggestion.status, 200);
+  assert.equal(reservedSuggestion.payload.id, "articles/avtomaticheskiy-id-2");
+
+  const first = await call("/api/articles", {
+    method: "POST",
+    body: JSON.stringify({
+      title: "Автоматический id",
+      body: "## Коротко\n\nТестовая статья.",
+    }),
+  });
+  assert.equal(first.status, 201);
+  assert.equal(first.payload.article.id, "articles/avtomaticheskiy-id-2");
+  assert.equal(first.payload.article.title, "Автоматический id");
+  assert.equal(first.payload.article.short, "Автоматический id");
+
+  const second = await call("/api/articles", {
+    method: "POST",
+    body: JSON.stringify({ title: "Автоматический id" }),
+  });
+  assert.equal(second.status, 201);
+  assert.equal(second.payload.article.id, "articles/avtomaticheskiy-id-3");
+
+  const third = await call("/api/articles", {
+    method: "POST",
+    body: JSON.stringify({ id: "   ", title: "Автоматический id", sections: [] }),
+  });
+  assert.equal(third.status, 201);
+  assert.equal(third.payload.article.id, "articles/avtomaticheskiy-id-4");
+
+  for (const id of [
+    "articles/avtomaticheskiy-id-2",
+    "articles/avtomaticheskiy-id-3",
+    "articles/avtomaticheskiy-id-4",
+  ]) {
+    const removed = await call(`/api/articles/${encodeURIComponent(id)}`, { method: "DELETE" });
+    assert.equal(removed.status, 200);
+  }
+  const restored = await call("/api/data/redirects", {
+    method: "PUT",
+    body: JSON.stringify({ data: originalRedirects }),
+  });
+  assert.equal(restored.status, 200);
+});
+
+test("POST/PUT статьи размещают её в разделах дерева и отдают теги", async () => {
+  const tree = {
+    schemaVersion: 1,
+    roots: [
+      { id: "test-a", title: "Раздел А", articles: [], children: [] },
+      { id: "test-b", title: "Раздел Б", articles: [], children: [] },
+    ],
+  };
+  const saved = await call("/api/tree", { method: "PUT", body: JSON.stringify({ tree }) });
+  assert.equal(saved.status, 200);
+
+  const created = await call("/api/articles", {
+    method: "POST",
+    body: JSON.stringify({
+      id: "problems/placed",
+      title: "Размещённая",
+      tags: ["Новичок", "новичок"],
+      sections: ["test-a", "test-a"],
+    }),
+  });
+  assert.equal(created.status, 201);
+  assert.deepEqual(created.payload.article.tags, ["Новичок"]);
+  assert.deepEqual(created.payload.validation.stats.treeArticles, 1);
+
+  const taggedAgain = await call("/api/articles", {
+    method: "POST",
+    body: JSON.stringify({
+      id: "problems/placed-2",
+      title: "Ещё размещённая",
+      tags: ["НОВИЧОК"],
+    }),
+  });
+  assert.equal(taggedAgain.status, 201);
+  assert.deepEqual(taggedAgain.payload.article.tags, ["НОВИЧОК"]);
+
+  let state = await call("/api/state");
+  assert.deepEqual(state.payload.tree.roots[0].articles, ["problems/placed"]);
+  assert.deepEqual(state.payload.tree.roots[1].articles, []);
+  assert.deepEqual(
+    state.payload.tags.filter((tag) => tag.toLocaleLowerCase("ru") === "новичок"),
+    ["Новичок"],
+  );
+
+  const removedTwin = await call(`/api/articles/${encodeURIComponent("problems/placed-2")}`, {
+    method: "DELETE",
+  });
+  assert.equal(removedTwin.status, 200);
+
+  const updated = await call(`/api/articles/${encodeURIComponent("problems/placed")}`, {
+    method: "PUT",
+    body: JSON.stringify({ title: "Размещённая заново", sections: ["test-b"] }),
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.payload.article.title, "Размещённая заново");
+
+  state = await call("/api/state");
+  assert.deepEqual(state.payload.tree.roots[0].articles, []);
+  assert.deepEqual(state.payload.tree.roots[1].articles, ["problems/placed"]);
+
+  const unplaced = await call(`/api/articles/${encodeURIComponent("problems/placed")}`, {
+    method: "PUT",
+    body: JSON.stringify({ sections: [] }),
+  });
+  assert.equal(unplaced.status, 200);
+  state = await call("/api/state");
+  assert.deepEqual(state.payload.tree.roots[0].articles, []);
+  assert.deepEqual(state.payload.tree.roots[1].articles, []);
+
+  const invalid = await call(`/api/articles/${encodeURIComponent("problems/placed")}`, {
+    method: "PUT",
+    body: JSON.stringify({ sections: ["test-missing"] }),
+  });
+  assert.equal(invalid.status, 400);
+  assert.match(invalid.payload.error, /не найден в дереве/);
+
+  await call(`/api/articles/${encodeURIComponent("problems/placed")}`, { method: "DELETE" });
+  await call("/api/tree", {
+    method: "PUT",
+    body: JSON.stringify({ tree: { schemaVersion: 1, roots: [] } }),
+  });
+});
+
 test("JSON-данные, медиа и проверка контента", async () => {
   const reference = (await call("/api/state")).payload.data.reference[0].data;
   reference.rows.push({ name: "K1-V1116" });
@@ -214,6 +358,22 @@ test("GET/PUT дерева навигации", async () => {
 
   const state = await call("/api/state");
   assert.equal(state.payload.tree.roots[0].title, "Знания");
+
+  const duplicate = await call("/api/tree", {
+    method: "PUT",
+    body: JSON.stringify({
+      tree: {
+        schemaVersion: 1,
+        roots: [
+          { id: "one", title: "Один", articles: [articleId], children: [] },
+          { id: "two", title: "Два", articles: [articleId], children: [] },
+        ],
+      },
+    }),
+  });
+  assert.equal(duplicate.status, 200);
+  assert.deepEqual(duplicate.payload.validation.errors, []);
+  assert.equal(duplicate.payload.validation.stats.treeArticles, 1);
 
   const invalid = await call("/api/tree", {
     method: "PUT",

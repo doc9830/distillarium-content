@@ -309,11 +309,11 @@ function checkStringArray(value, field, where, errors) {
   }
 }
 
-function loadArticles(contentDir, errors) {
+function loadArticles(contentDir, errors, warnings) {
   const wikiDir = path.join(contentDir, "wiki");
   const files = walkFiles(wikiDir).filter((rel) => rel.endsWith(".md"));
   if (!files.length) {
-    errors.push("content/wiki: не найдено ни одной статьи");
+    warnings.push("content/wiki: статей пока нет");
     return [];
   }
 
@@ -672,8 +672,9 @@ const TREE_ID_RE = /^[a-z0-9][a-z0-9/_-]*$/;
  * - держать в дереве произвольные названия, а не только слаг пути;
  * - разрешить редактору быть настоящим конструктором.
  *
- * articles — массив id статей. Каждая статья может стоять только в одном
- * месте дерева; дополнительные входы дают теги.
+ * articles — массив id статей. Одна статья может стоять в нескольких
+ * разделах: это удобно для навигации без дублирования текста. Внутри одного
+ * раздела повторять id нельзя.
  */
 export function loadTree(contentDir, articleIds, errors, warnings = []) {
   const file = path.join(contentDir, TREE_FILE);
@@ -701,8 +702,9 @@ export function loadTree(contentDir, articleIds, errors, warnings = []) {
   }
 
   const nodeIds = new Set();
-  const placed = new Map();
+  const placed = new Set();
   let nodeCount = 0;
+  let placementCount = 0;
 
   const walk = (node, where, depth) => {
     if (!node || typeof node !== "object" || Array.isArray(node)) {
@@ -736,6 +738,7 @@ export function loadTree(contentDir, articleIds, errors, warnings = []) {
     if (!Array.isArray(articles)) {
       errors.push(`${nodeWhere}: articles должен быть массивом id статей`);
     } else {
+      const seenHere = new Set();
       for (const item of articles) {
         if (typeof item !== "string" || !item.trim()) {
           errors.push(`${nodeWhere}: в articles есть пустое значение`);
@@ -746,13 +749,13 @@ export function loadTree(contentDir, articleIds, errors, warnings = []) {
           errors.push(`${nodeWhere}: статья "${articleId}" не найдена`);
           continue;
         }
-        if (placed.has(articleId)) {
-          errors.push(
-            `${nodeWhere}: статья "${articleId}" уже стоит в разделе "${placed.get(articleId)}"`,
-          );
+        if (seenHere.has(articleId)) {
+          errors.push(`${nodeWhere}: статья "${articleId}" повторяется в одном разделе`);
           continue;
         }
-        placed.set(articleId, id || where);
+        seenHere.add(articleId);
+        placed.add(articleId);
+        placementCount += 1;
       }
     }
 
@@ -786,6 +789,7 @@ export function loadTree(contentDir, articleIds, errors, warnings = []) {
     stats: {
       nodes: nodeCount,
       articles: placed.size,
+      placements: placementCount,
       unplaced,
     },
   };
@@ -794,7 +798,7 @@ export function loadTree(contentDir, articleIds, errors, warnings = []) {
 export function analyzeContent(contentDir) {
   const errors = [];
   const warnings = [];
-  const articles = loadArticles(contentDir, errors);
+  const articles = loadArticles(contentDir, errors, warnings);
   const redirects = loadRedirects(contentDir, errors);
   const objects = loadTypedObjects(contentDir, errors);
   const articleIds = new Set(articles.map((article) => article.id));

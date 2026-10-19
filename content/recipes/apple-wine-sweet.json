@@ -18,12 +18,12 @@
   "steps": [
     { "title": "Отжать 20 л сока и записать начальную сахаристость", "afterDays": 0 },
     { "title": "Продезинфицировать оборудование", "afterDays": 0 },
-    { "title": "Внести подкормку и дрожжи M02", "afterDays": 0, "wikiId": "processes/ferment/primary" },
-    { "title": "Проверить начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
-    { "title": "Сбраживать при 18–22 °C до стабильных показаний 48 часов", "afterDays": 14, "wikiId": "problems/stuck-ferment" },
-    { "title": "Снять вино с основного осадка", "afterDays": 2, "wikiId": "processes/separate/racking" },
+    { "title": "Внести подкормку и дрожжи M02", "afterDays": 0 },
+    { "title": "Проверить начало брожения", "afterDays": 1 },
+    { "title": "Сбраживать при 18–22 °C до стабильных показаний 48 часов", "afterDays": 14 },
+    { "title": "Снять вино с основного осадка", "afterDays": 2 },
     { "title": "Внести остановитель брожения и выдержать 24–48 часов", "afterDays": 2 },
-    { "title": "Осветлить Винофлоком и снять с осадка", "afterDays": 1, "wikiId": "processes/finish/fining" },
+    { "title": "Осветлить Винофлоком и снять с осадка", "afterDays": 1 },
     { "title": "Отрегулировать сладость декстрозой", "afterDays": 2 },
     { "title": "Разлить по бутылкам и хранить в прохладе", "afterDays": 1 }
   ]

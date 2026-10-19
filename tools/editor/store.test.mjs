@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { ContentStore, nextContentVersion } from "./store.mjs";
+import { ContentStore, nextContentVersion, slugifyTitle } from "./store.mjs";
 
 const roots = [];
 
@@ -87,6 +87,15 @@ function makeRepo() {
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+test("slugifyTitle: транслитерация заголовка в id", () => {
+  assert.equal(slugifyTitle("Новая статья"), "novaya-statya");
+  assert.equal(slugifyTitle("Ёмкость для брожения"), "emkost-dlya-brozheniya");
+  assert.equal(slugifyTitle("  Мёд & сахар  "), "med-sahar");
+  assert.equal(slugifyTitle("Пластик/стекло"), "plastik-steklo");
+  assert.equal(slugifyTitle("EC-1118 — дрожжи"), "ec-1118-drozhzhi");
+  assert.equal(slugifyTitle("⚗️"), "");
+});
+
 
 test("ContentStore: состояние, статьи, редиректы и данные", () => {
   const root = makeRepo();
@@ -116,7 +125,24 @@ test("ContentStore: состояние, статьи, редиректы и да
   assert.throws(() => store.readArticle("../escape"), /id статьи/);
   assert.throws(() => store.createArticle({ id: "processes/run", title: "Дубль" }), /уже существует/);
   assert.throws(() => store.createArticle({ id: "плохой id", title: "Нет" }), /id статьи/);
-  assert.throws(() => store.createArticle({ title: "Без id" }), /id статьи/);
+  assert.throws(() => store.createArticle({ title: "   " }), /title не может быть пустым/);
+
+  const auto = store.createArticle({ title: "Новая статья" });
+  assert.equal(auto.article.id, "articles/novaya-statya");
+  assert.equal(auto.article.title, "Новая статья");
+  assert.equal(auto.article.short, "Новая статья");
+  assert.deepEqual(auto.validation.errors, []);
+  const autoAgain = store.createArticle({ title: "Новая статья" });
+  assert.equal(autoAgain.article.id, "articles/novaya-statya-2");
+  const autoEmptyId = store.createArticle({ id: "   ", title: "Новая статья" });
+  assert.equal(autoEmptyId.article.id, "articles/novaya-statya-3");
+  const autoTranslit = store.createArticle({ title: "Ёмкость для брожения" });
+  assert.equal(autoTranslit.article.id, "articles/emkost-dlya-brozheniya");
+  assert.equal(
+    store.nextArticleId("Новая статья", { "articles/novaya-statya-3": "start" }),
+    "articles/novaya-statya-4",
+  );
+  assert.equal(store.nextArticleId("⚗️"), "articles/article");
 
   const created = store.createArticle({
     id: "problems/new",
@@ -126,6 +152,8 @@ test("ContentStore: состояние, статьи, редиректы и да
     body: "Ссылка на [[processes/run]].",
   });
   assert.equal(created.article.id, "problems/new");
+  assert.deepEqual(created.article.tags, ["новичок"]);
+  assert.deepEqual(store.state().tags, ["новичок"]);
   assert.equal(created.validation.errors.length, 0);
   assert.throws(
     () => store.createArticle({ id: "problems/new", title: "Ещё" }),
@@ -213,23 +241,114 @@ test("ContentStore: дерево сохраняется, проверяется 
   );
   assert.equal(store.readTree().roots[0].title, "Знания");
 
+  const duplicate = store.saveTree({
+    schemaVersion: 1,
+    roots: [
+      { id: "one", title: "Один", articles: ["start"], children: [] },
+      { id: "two", title: "Два", articles: ["start"], children: [] },
+    ],
+  });
+  assert.deepEqual(duplicate.validation.errors, []);
+  assert.deepEqual(store.readTree().roots[0].articles, ["start"]);
+  assert.deepEqual(store.readTree().roots[1].articles, ["start"]);
+  assert.equal(duplicate.validation.stats.treeArticles, 1);
+
   assert.throws(
     () =>
       store.saveTree({
         schemaVersion: 1,
-        roots: [
-          { id: "one", title: "Один", articles: ["start"], children: [] },
-          { id: "two", title: "Два", articles: ["start"], children: [] },
-        ],
+        roots: [{ id: "one", title: "Один", articles: ["start", "start"], children: [] }],
       }),
     /дерево не прошло проверку/,
   );
 
   store.renameArticle("start", "start-new");
   assert.deepEqual(store.readTree().roots[0].articles, ["start-new"]);
+  assert.deepEqual(store.readTree().roots[1].articles, ["start-new"]);
 
   store.deleteArticle("start-new");
   assert.deepEqual(store.readTree().roots[0].articles, []);
+  assert.deepEqual(store.readTree().roots[1].articles, []);
+});
+
+test("ContentStore: статья размещается в выбранных разделах дерева", () => {
+  const root = makeRepo();
+  const store = new ContentStore(root);
+  store.saveTree({
+    schemaVersion: 1,
+    roots: [
+      {
+        id: "a",
+        title: "А",
+        articles: [],
+        children: [{ id: "a/b", title: "Б", articles: [], children: [] }],
+      },
+      { id: "b", title: "В", articles: [], children: [] },
+    ],
+  });
+
+  const created = store.createArticle({
+    id: "problems/new",
+    title: "Новая",
+    tags: ["Новичок", "новичок", " новичок "],
+    sections: ["a", "a/b", "a"],
+  });
+  assert.deepEqual(created.article.tags, ["Новичок"]);
+  assert.deepEqual(store.readTree().roots[0].articles, ["problems/new"]);
+  assert.deepEqual(store.readTree().roots[0].children[0].articles, ["problems/new"]);
+
+  const empty = store.createArticle({ id: "problems/other", title: "Другая", sections: [] });
+  assert.equal(empty.article.id, "problems/other");
+  assert.deepEqual(store.readTree().roots[1].articles, []);
+
+  store.updateArticle("problems/other", { sections: ["b"] });
+  store.updateArticle("problems/new", {
+    sections: ["b", "a"],
+    tags: ["Новичок", "другой", "ДРУГОЙ"],
+  });
+  assert.deepEqual(store.readTree().roots[1].articles, ["problems/other", "problems/new"]);
+  assert.deepEqual(store.readTree().roots[0].articles, ["problems/new"]);
+  assert.deepEqual(store.readTree().roots[0].children[0].articles, []);
+  assert.deepEqual(store.readArticle("problems/new").tags, ["Новичок", "другой"]);
+  assert.ok(store.state().tags.includes("другой"));
+
+  const withoutSections = store.updateArticle("problems/new", { title: "Новая статья" });
+  assert.equal(withoutSections.article.title, "Новая статья");
+  assert.deepEqual(store.readTree().roots[1].articles, ["problems/other", "problems/new"]);
+  assert.deepEqual(store.readTree().roots[0].articles, ["problems/new"]);
+
+  store.updateArticle("problems/new", { sections: [] });
+  assert.deepEqual(store.readTree().roots[0].articles, []);
+  assert.deepEqual(store.readTree().roots[1].articles, ["problems/other"]);
+
+  assert.throws(
+    () => store.updateArticle("problems/other", { sections: ["missing"] }),
+    /раздел missing не найден/,
+  );
+  assert.deepEqual(store.readTree().roots[1].articles, ["problems/other"]);
+});
+
+test("ContentStore: удаление чистит рецепты и ссылки в других статьях", () => {
+  const root = makeRepo();
+  const store = new ContentStore(root);
+
+  const removed = store.deleteArticle("processes/run");
+  assert.deepEqual(removed.validation.errors, []);
+  assert.doesNotMatch(store.readArticle("start").body, /\[\[processes\/run\]\]/);
+  assert.match(store.readArticle("start").body, /Запуск/);
+  const recipe = store.readData().recipes[0].data;
+  assert.equal(recipe.steps[0].wikiId, undefined);
+});
+
+test("ContentStore: удаление с редиректом перенаправляет wikiId в рецептах", () => {
+  const root = makeRepo();
+  const store = new ContentStore(root);
+
+  const removed = store.deleteArticle("processes/run", "start");
+  assert.deepEqual(removed.validation.errors, []);
+  assert.equal(store.readData().redirects["processes/run"], "start");
+  assert.equal(store.readData().recipes[0].data.steps[0].wikiId, "start");
+  assert.match(store.readArticle("start").body, /\[\[processes\/run\]\]/);
 });
 
 test("nextContentVersion: текущий месяц, новый месяц и мусор", () => {

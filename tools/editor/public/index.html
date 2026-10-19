@@ -43,10 +43,10 @@
             <select id="tagFilter" aria-label="Тег"></select>
           </div>
           <div class="list-head">
-            <span>Статьи</span>
+            <span>Дерево статей</span>
             <span id="articleCount" class="muted">0</span>
           </div>
-          <div class="article-list" id="articleList"></div>
+          <div class="article-list" id="articleList" aria-label="Дерево статей"></div>
           <div class="sidebar-foot">
             <span id="mediaCount" class="muted">медиа: 0</span>
             <button class="link-button" id="refreshBtn">Обновить</button>
@@ -68,7 +68,14 @@
             <div class="editor-head">
               <div class="title-wrap">
                 <div class="id-line">
-                  <code id="articleIdLabel"></code>
+                  <label for="articleIdInput">id</label>
+                  <input
+                    id="articleIdInput"
+                    class="id-input"
+                    spellcheck="false"
+                    autocomplete="off"
+                    readonly
+                  />
                   <span class="dot">·</span>
                   <span id="articlePathLabel" class="muted"></span>
                 </div>
@@ -76,7 +83,7 @@
               </div>
               <div class="head-actions">
                 <button class="btn primary" id="saveBtn">Сохранить <kbd>Ctrl S</kbd></button>
-                <button class="btn" id="renameBtn">Переименовать</button>
+                <button class="btn" id="renameBtn" title="Технический адрес статьи; заголовок меняется в поле выше">Изменить id</button>
                 <button class="btn danger" id="deleteBtn">Удалить</button>
               </div>
             </div>
@@ -86,31 +93,17 @@
                 <span>Короткое описание</span>
                 <input id="shortInput" maxlength="300" placeholder="Одно-два предложения для списка и поиска" />
               </label>
-              <label class="field">
-                <span>Раздел</span>
-                <input id="sectionLabel" readonly placeholder="Задаётся в дереве" />
-              </label>
-              <label class="field">
-                <span>Уровень</span>
-                <select id="levelInput">
-                  <option value="">не задан</option>
-                  <option value="1">1 — старт</option>
-                  <option value="2">2 — процесс</option>
-                  <option value="3">3 — деталь</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Технологии</span>
-                <input id="techInput" placeholder="wine, beer, distill" />
-              </label>
-              <label class="field">
-                <span>Оборудование</span>
-                <input id="equipmentInput" placeholder="any, pot, column" />
-              </label>
-              <label class="field">
+              <div class="field field-wide">
+                <span>Разделы дерева</span>
+                <div id="sectionChips" class="chip-editor"></div>
+                <select id="sectionAdd" aria-label="Добавить статью в раздел"></select>
+              </div>
+              <div class="field field-wide">
                 <span>Теги</span>
-                <input id="tagsInput" placeholder="новичку, проблема" />
-              </label>
+                <div id="tagChips" class="chip-editor"></div>
+                <input id="tagsInput" list="tagOptions" placeholder="Начните вводить тег и нажмите Enter" autocomplete="off" />
+                <datalist id="tagOptions"></datalist>
+              </div>
               <label class="field">
                 <span>Калькуляторы</span>
                 <input id="calcInput" placeholder="dilution, heads-tails" />
@@ -207,7 +200,7 @@
         <header class="modal-head">
           <div>
             <h2 id="treeTitle">Дерево навигации</h2>
-            <p class="muted">Перетаскивайте статьи в разделы, а разделы — друг в друга. Порядок меняется стрелками.</p>
+            <p class="muted">Перетаскивайте статьи в разделы, а разделы — друг в друга. Одну статью можно разместить в нескольких разделах. Порядок меняется стрелками.</p>
           </div>
           <button class="icon-button" data-close="treeModal" aria-label="Закрыть">✕</button>
         </header>
@@ -215,6 +208,10 @@
           <button class="btn" id="treeAddRootBtn">+ Раздел</button>
           <button class="btn" id="treeSeedBtn" title="Создать разделы из категорий статей">Разложить по категориям</button>
           <span id="treeSummary" class="muted"></span>
+          <label class="tree-toggle">
+            <input id="treeShowUsed" type="checkbox" />
+            Показать использующиеся
+          </label>
         </div>
         <div class="tree-layout">
           <div class="tree-canvas">
@@ -227,7 +224,7 @@
               <span id="treeUnplacedCount" class="muted">0</span>
             </div>
             <div id="treeUnplaced" class="tree-unplaced-list"></div>
-            <p class="hint">Перетащите статью в раздел или удалите её из раздела кнопкой ×. Неразмещённые статьи не теряются.</p>
+            <p class="hint">Перетащите статью в раздел или уберите её из раздела кнопкой ×. Одну статью можно разместить в нескольких разделах: включите «Показать использующиеся» и перетащите её ещё раз.</p>
           </aside>
         </div>
         <div id="treeErrors" class="tree-errors" hidden></div>

@@ -18,10 +18,10 @@
   "steps": [
     { "title": "Отжать 20 л сока и записать начальную сахаристость", "afterDays": 0 },
     { "title": "Продезинфицировать оборудование", "afterDays": 0 },
-    { "title": "Внести подкормку и дрожжи M02", "afterDays": 0, "wikiId": "processes/ferment/primary" },
-    { "title": "Проверить начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
-    { "title": "Сбраживать при 18–22 °C до стабильных показаний 48 часов", "afterDays": 14, "wikiId": "problems/stuck-ferment" },
-    { "title": "Снять с осадка и добавить 7 г/л декстрозы", "afterDays": 2, "wikiId": "processes/separate/racking" },
+    { "title": "Внести подкормку и дрожжи M02", "afterDays": 0 },
+    { "title": "Проверить начало брожения", "afterDays": 1 },
+    { "title": "Сбраживать при 18–22 °C до стабильных показаний 48 часов", "afterDays": 14 },
+    { "title": "Снять с осадка и добавить 7 г/л декстрозы", "afterDays": 2 },
     { "title": "Разлить в бутылки для давления и карбонизировать 2 недели", "afterDays": 1 },
     { "title": "Убрать бутылки в прохладное место", "afterDays": 14 }
   ]

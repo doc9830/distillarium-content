@@ -143,6 +143,11 @@ export function createHandler(store, publicDir = PUBLIC_DIR) {
         const body = await readBody(req);
         return sendJson(res, 201, store.createArticle(body));
       }
+      if (req.method === "GET" && pathname === "/api/article-id") {
+        const title = url.searchParams.get("title") ?? "";
+        const redirects = store.readData().redirects ?? {};
+        return sendJson(res, 200, { id: store.nextArticleId(title, redirects) });
+      }
 
       const renameId = apiArticleId(pathname, "rename");
       if (req.method === "POST" && renameId) {

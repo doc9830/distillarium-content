@@ -15,11 +15,11 @@
     { "name": "Турбо-дрожжи", "amount": "по инструкции" }
   ],
   "steps": [
-    { "title": "Подготовить ёмкость с запасом под пену", "afterDays": 0, "wikiId": "equipment/airlock" },
+    { "title": "Подготовить ёмкость с запасом под пену", "afterDays": 0 },
     { "title": "Растворить сахар в воде", "afterDays": 0 },
-    { "title": "Внести турбо-дрожжи", "afterDays": 0, "wikiId": "raw/distiller-yeast" },
-    { "title": "Проверить температуру и начало брожения", "afterDays": 1, "wikiId": "problems/no-bubbles" },
-    { "title": "Дождаться окончания брожения", "afterDays": 5, "wikiId": "problems/stuck-ferment" },
-    { "title": "Снять с осадка и перегнать", "afterDays": 2, "wikiId": "processes/separate/first-run" }
+    { "title": "Внести турбо-дрожжи", "afterDays": 0 },
+    { "title": "Проверить температуру и начало брожения", "afterDays": 1 },
+    { "title": "Дождаться окончания брожения", "afterDays": 5 },
+    { "title": "Снять с осадка и перегнать", "afterDays": 2 }
   ]
 }

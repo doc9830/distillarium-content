@@ -31,6 +31,46 @@ const VERSION_RE = /^(\d{4})\.(\d{2})\.(\d+)$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MEDIA_EXTENSIONS = new Set([".webp", ".png", ".jpg", ".jpeg"]);
 const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
+const GENERATED_ID_PREFIX = "articles";
+const TRANSLIT = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "h",
+  ц: "c",
+  ч: "ch",
+  ш: "sh",
+  щ: "sch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya",
+  і: "i",
+  ї: "yi",
+  є: "ye",
+  ґ: "g",
+};
 
 export class ApiError extends Error {
   constructor(status, message, details = undefined) {
@@ -76,8 +116,31 @@ function asStringArray(value, field) {
   return value.map((item) => String(item).trim()).filter(Boolean);
 }
 
+/** Теги сравниваем без учёта регистра, сохраняя первое написание. */
+function uniqueTags(items) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const key = item.toLocaleLowerCase("ru");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+/** undefined — не менять размещение, [] — убрать из всех разделов. */
+function optionalStringArray(value, field) {
+  if (value === undefined) return null;
+  return [...new Set(asStringArray(value, field))];
+}
+
 function cleanText(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trimEnd();
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function isValidArticleId(id) {
@@ -87,6 +150,29 @@ export function isValidArticleId(id) {
   if (value.startsWith("/") || value.endsWith("/") || value.includes("//")) return false;
   if (!ID_RE.test(value)) return false;
   return value.split("/").every((part) => part && part !== "." && part !== "..");
+}
+
+/** Заголовок → читаемый латинский слаг для автоматического id. */
+export function slugifyTitle(value) {
+  const text = String(value ?? "").normalize("NFC").toLowerCase();
+  let slug = "";
+  for (const char of text) {
+    if (/[a-z0-9]/.test(char)) {
+      slug += char;
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(TRANSLIT, char)) {
+      slug += TRANSLIT[char];
+      continue;
+    }
+    const plain = char.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    slug += /^[a-z0-9]+$/.test(plain) ? plain : "-";
+  }
+  return slug
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80)
+    .replace(/-+$/g, "");
 }
 
 function assertArticleId(id) {
@@ -170,6 +256,7 @@ function normalizeArticleData(input, id, { creating }) {
   };
 
   if (short) normalized.short = short;
+  else if (creating) normalized.short = title.slice(0, 300);
   else delete normalized.short;
 
   const category = asString(input?.category ?? data.category).trim();
@@ -181,7 +268,8 @@ function normalizeArticleData(input, id, { creating }) {
   else normalized.level = level;
 
   for (const field of ["tech", "equipment", "tags", "calc"]) {
-    const items = asStringArray(input?.[field] ?? data[field] ?? [], field);
+    let items = asStringArray(input?.[field] ?? data[field] ?? [], field);
+    if (field === "tags") items = uniqueTags(items);
     if (items.length) normalized[field] = items;
     else delete normalized[field];
   }
@@ -234,6 +322,17 @@ function normalizeTree(input) {
     schemaVersion: TREE_SCHEMA_VERSION,
     roots: input.roots.map((node, index) => walk(node, `root ${index + 1}`, 1)),
   };
+}
+
+function treeSectionMap(tree) {
+  const map = new Map();
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    map.set(node.id, node);
+    (node.children ?? []).forEach(walk);
+  };
+  (tree?.roots ?? []).forEach(walk);
+  return map;
 }
 
 export class ContentStore {
@@ -293,18 +392,38 @@ export class ContentStore {
     return this.validation();
   }
 
+  nextArticleId(title, redirects = {}) {
+    const slug = slugifyTitle(title) || "article";
+    const base = `${GENERATED_ID_PREFIX}/${slug}`;
+    const taken = (id) =>
+      fs.existsSync(this.articleFile(id)) ||
+      Object.prototype.hasOwnProperty.call(redirects, id);
+    if (!taken(base)) return base;
+    for (let index = 2; index < 10000; index += 1) {
+      const candidate = `${base}-${index}`;
+      if (!taken(candidate)) return candidate;
+    }
+    return `${base}-${Date.now()}`;
+  }
+
   createArticle(input) {
-    const id = asString(input?.id).trim();
+    const title = asString(input?.title ?? input?.data?.title).trim();
+    if (!title) throw new ApiError(400, "title не может быть пустым");
+    const requestedId = asString(input?.id).trim();
+    const redirects = readJson(this.redirectsFile, {});
+    const id = requestedId || this.nextArticleId(title, redirects);
     assertArticleId(id);
     const file = this.articleFile(id);
     if (fs.existsSync(file)) throw new ApiError(409, `статья ${id} уже существует`);
-    const redirects = readJson(this.redirectsFile, {});
     if (Object.prototype.hasOwnProperty.call(redirects, id)) {
-      throw new ApiError(409, `id ${id} уже занят редиректом; выберите другой`);
+      throw new ApiError(409, `id ${id} уже занят редиректом`);
     }
-    const data = normalizeArticleData(input, id, { creating: true });
-    const validation = this.writeArticle(id, data, input?.body ?? "");
-    return { article: this.readArticle(id), validation };
+    const sections = optionalStringArray(input?.sections, "sections");
+    this.assertSectionsExist(sections);
+    const data = normalizeArticleData({ ...input, title }, id, { creating: true });
+    this.writeArticle(id, data, input?.body ?? "");
+    if (sections) this.applyArticleSections(id, sections);
+    return { article: this.readArticle(id), validation: this.validation() };
   }
 
   updateArticle(id, input) {
@@ -315,8 +434,66 @@ export class ContentStore {
       { creating: false },
     );
     const body = input?.body === undefined ? existing.body : input.body;
-    const validation = this.writeArticle(id, data, body);
-    return { article: this.readArticle(id), validation };
+    const sections = optionalStringArray(input?.sections, "sections");
+    this.assertSectionsExist(sections);
+    this.writeArticle(id, data, body);
+    if (sections) this.applyArticleSections(id, sections);
+    return { article: this.readArticle(id), validation: this.validation() };
+  }
+
+  assertSectionsExist(sections) {
+    if (!sections?.length) return;
+    const known = treeSectionMap(this.readTree());
+    for (const sectionId of sections) {
+      if (!known.has(sectionId)) {
+        throw new ApiError(400, `раздел ${sectionId} не найден в дереве`);
+      }
+    }
+  }
+
+  /**
+   * Приводит размещения статьи к списку разделов, сохраняя порядок
+   * в тех разделах, где статья уже была. Пустой список убирает статью
+   * из дерева, null (не передан) оставляет всё как есть.
+   */
+  applyArticleSections(id, sectionIds) {
+    if (!Array.isArray(sectionIds)) return;
+    const tree = normalizeTree(this.readTree());
+    const wanted = new Set(sectionIds);
+    const present = new Set();
+    let changed = false;
+
+    const walk = (node) => {
+      const current = node.articles ?? [];
+      const next = [];
+      for (const articleId of current) {
+        if (articleId !== id) {
+          next.push(articleId);
+          continue;
+        }
+        if (wanted.has(node.id) && !present.has(node.id)) {
+          next.push(articleId);
+          present.add(node.id);
+        } else {
+          changed = true;
+        }
+      }
+      if (next.length !== current.length) changed = true;
+      node.articles = next;
+      (node.children ?? []).forEach(walk);
+    };
+    tree.roots.forEach(walk);
+
+    const sections = treeSectionMap(tree);
+    for (const sectionId of sectionIds) {
+      const section = sections.get(sectionId);
+      if (!section || present.has(sectionId)) continue;
+      section.articles ??= [];
+      section.articles.push(id);
+      present.add(sectionId);
+      changed = true;
+    }
+    if (changed) writeJson(this.treeFile, tree);
   }
 
 
@@ -357,6 +534,8 @@ export class ContentStore {
         throw new ApiError(400, `цель редиректа ${target} не найдена`);
       }
     }
+    const parsed = parseFrontmatter(fs.readFileSync(file, "utf8"));
+    const title = asString(parsed.data.title).trim();
     fs.unlinkSync(file);
     this.removeEmptyDirs(path.dirname(file));
     this.updateTreeReferences(id);
@@ -364,8 +543,11 @@ export class ContentStore {
       const redirects = this.retargetRedirects(id, target);
       redirects[id] = target;
       writeJson(this.redirectsFile, redirects);
+      this.rewriteRecipeReferences(id, target);
     } else {
       this.retargetRedirects(id);
+      this.removeRecipeReferences(id);
+      this.removeArticleLinks(id, title);
     }
     return { validation: this.validation() };
   }
@@ -392,6 +574,51 @@ export class ContentStore {
         }
       }
       if (changed) writeJson(file, recipe);
+    }
+  }
+
+  /** Убирает ссылки на удалённую статью из шагов рецептов. */
+  removeRecipeReferences(id) {
+    const dir = path.join(this.contentDir, "recipes");
+    for (const rel of walkFiles(dir).filter((file) => file.endsWith(".json"))) {
+      const file = path.join(dir, rel);
+      const recipe = readJson(file);
+      let changed = false;
+      for (const step of Array.isArray(recipe.steps) ? recipe.steps : []) {
+        if (step?.wikiId === id) {
+          delete step.wikiId;
+          changed = true;
+        }
+      }
+      if (changed) writeJson(file, recipe);
+    }
+  }
+
+  /**
+   * Убирает [[id]] и [[id|подпись]] из остальных статей. Без этого удаление
+   * статьи оставляло бы битые ссылки и вечные ошибки проверки.
+   */
+  removeArticleLinks(id, fallbackLabel = "") {
+    const target = escapeRegExp(id);
+    const labelRe = new RegExp(`\\[\\[\\s*${target}\\s*\\|([^\\]]+)\\]\\]`, "g");
+    const plainRe = new RegExp(`\\[\\[\\s*${target}\\s*\\]\\]`, "g");
+    const replacement = fallbackLabel || id;
+    for (const rel of walkFiles(this.wikiDir).filter((file) => file.endsWith(".md"))) {
+      const file = path.join(this.wikiDir, rel);
+      const parsed = parseFrontmatter(fs.readFileSync(file, "utf8"));
+      let body = parsed.body;
+      if (!labelRe.test(body) && !plainRe.test(body)) {
+        labelRe.lastIndex = 0;
+        plainRe.lastIndex = 0;
+        continue;
+      }
+      labelRe.lastIndex = 0;
+      plainRe.lastIndex = 0;
+      body = body
+        .replace(labelRe, (_, label) => String(label).trim())
+        .replace(plainRe, () => replacement);
+      parsed.data.updated = today();
+      atomicWrite(file, `${stringifyFrontmatter(parsed.data)}${cleanText(body)}\n`);
     }
   }
 
@@ -734,11 +961,14 @@ export class ContentStore {
       .map(summarize)
       .sort((a, b) => a.id.localeCompare(b.id));
     const categories = [...new Set(articles.map((article) => article.category).filter(Boolean))].sort();
+    const tags = uniqueTags(articles.flatMap((article) => article.tags))
+      .sort((a, b) => a.localeCompare(b, "ru"));
     return {
       contentVersion: asString(data.version.contentVersion),
       nextVersion: nextContentVersion(data.version.contentVersion),
       articles,
       categories,
+      tags,
       tree: this.readTree(),
       data,
       media: this.listMedia(),
