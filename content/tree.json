@@ -44,15 +44,6 @@
           ]
         },
         {
-          "id": "section-mvf4pke91/section-mvf8av9s1",
-          "title": "Оборудование",
-          "articles": [
-            "articles/areometr-saharomer",
-            "articles/areometr-spirtomer"
-          ],
-          "children": []
-        },
-        {
           "id": "section-mvf4pke91/section-mvf4rpsf9",
           "title": "Рецепты",
           "articles": [],
@@ -62,6 +53,24 @@
           "id": "section-mvf4pke91/section-mvf4qr7o8",
           "title": "Проблемы и решения",
           "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4pke91/section-mvf8av9s1",
+          "title": "Оборудование",
+          "articles": [
+            "articles/areometr-saharomer",
+            "articles/areometr-spirtomer",
+            "articles/mernyy-cilindr",
+            "articles/samogonnyy-popugay",
+            "articles/termometr",
+            "articles/refraktometr",
+            "articles/brodilnaya-emkost",
+            "articles/peregonnyy-kub",
+            "articles/gazovaya-plita",
+            "articles/indukcionnaya-plita",
+            "articles/ten"
+          ],
           "children": []
         }
       ]
@@ -100,6 +109,17 @@
           "title": "Проблемы и решения",
           "articles": [],
           "children": []
+        },
+        {
+          "id": "section-mvf4pox32/section-mvfbesjf1",
+          "title": "Оборудование",
+          "articles": [
+            "articles/mernyy-cilindr",
+            "articles/termometr",
+            "articles/refraktometr",
+            "articles/brodilnaya-emkost"
+          ],
+          "children": []
         }
       ]
     },
@@ -107,14 +127,66 @@
       "id": "section-mvf4ptpn3",
       "title": "Пивоварение",
       "articles": [],
-      "children": []
+      "children": [
+        {
+          "id": "section-mvf4ptpn3/section-mvfbezyg2",
+          "title": "Сырье",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4ptpn3/section-mvfbf4bk3",
+          "title": "Дрожжи",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4ptpn3/section-mvfbfasy4",
+          "title": "Инструкции",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4ptpn3/section-mvfbff6l5",
+          "title": "Рецепты",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4ptpn3/section-mvfbfl8m6",
+          "title": "Проблемы и решения",
+          "articles": [],
+          "children": []
+        },
+        {
+          "id": "section-mvf4ptpn3/section-mvfbfrrf7",
+          "title": "Оборудование",
+          "articles": [
+            "articles/mernyy-cilindr",
+            "articles/termometr",
+            "articles/refraktometr",
+            "articles/brodilnaya-emkost",
+            "articles/indukcionnaya-plita"
+          ],
+          "children": []
+        }
+      ]
     },
     {
       "id": "section-mvf4pybv4",
       "title": "Оборудование",
       "articles": [
         "articles/areometr-saharomer",
-        "articles/areometr-spirtomer"
+        "articles/areometr-spirtomer",
+        "articles/mernyy-cilindr",
+        "articles/samogonnyy-popugay",
+        "articles/termometr",
+        "articles/refraktometr",
+        "articles/brodilnaya-emkost",
+        "articles/peregonnyy-kub",
+        "articles/gazovaya-plita",
+        "articles/indukcionnaya-plita",
+        "articles/ten"
       ],
       "children": []
     }
