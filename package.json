@@ -1,6 +1,6 @@
 {
   "name": "distillarium-content",
-  "version": "2026.10.16",
+  "version": "2026.10.17",
   "private": true,
   "type": "module",
   "description": "Контент «Дистиллярия»: вики, справочники, рецепты, медиа и сборка пакета",
